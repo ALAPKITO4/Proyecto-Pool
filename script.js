@@ -1585,6 +1585,14 @@ async function acceptPoolInvitation() {
 
     // Guardar en Firestore Y localStorage (sincronización dual)
     console.log('💾 Sincronizando datos...');
+    console.log('   📋 Estado del pool ANTES de guardar:', JSON.stringify(event.participantes));
+    
+    // Asegurar que participantes tenga el valor correcto antes de guardar
+    if (event.participantes) {
+        event.participantes.forEach(p => {
+            console.log(`   - ${p.nombre}: ${p.estado}`);
+        });
+    }
     
     try {
         // Guardar en Firestore usando PoolStorage (más robusto)
@@ -1592,6 +1600,10 @@ async function acceptPoolInvitation() {
             console.log('   📡 Guardando en Firestore...');
             await PoolStorage.savePool(event);
             console.log('   ✅ Firestore actualizado correctamente');
+            
+            // Verificar que se guardó correctamente
+            const verify = await PoolStorage.getPoolById(poolId);
+            console.log('   🔍 Verificación Firestore:', verify ? JSON.stringify(verify.participantes) : 'NO ENCONTRADO');
         } else {
             console.log('   ⚠️ Firebase no disponible');
         }
@@ -1602,6 +1614,9 @@ async function acceptPoolInvitation() {
         localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(updated));
         poolsEvents = updated;
         console.log('   ✅ localStorage actualizado');
+        
+        // Guardar también como pool aceptada por el usuario (para persistencia)
+        saveUserAcceptedPool(poolId, event);
         
     } catch (error) {
         console.error('❌ Error en sincronización:', error);
@@ -2710,3 +2725,77 @@ document.addEventListener('DOMContentLoaded', initApp);
 
 // Limpiar antes de cerrar (opcional)
 window.addEventListener('beforeunload', saveState);
+
+/* ============================================
+   PERSISTENCIA DE POOLS ACEPTADAS
+   ============================================ */
+
+/**
+ * Guarda una pool aceptada por el usuario para persistencia
+ * Esto permite que el usuario vea sus pools aceptadas al recargar
+ */
+function saveUserAcceptedPool(poolId, poolData) {
+    console.log('💾 Guardando pool aceptada para el usuario...');
+    
+    // Obtener pools aceptadas del usuario
+    const acceptedPools = JSON.parse(localStorage.getItem('user_accepted_pools') || '[]');
+    
+    // Verificar si ya existe
+    const existingIndex = acceptedPools.findIndex(p => p.id === poolId);
+    
+    if (existingIndex >= 0) {
+        // Actualizar
+        acceptedPools[existingIndex] = poolData;
+    } else {
+        // Agregar
+        acceptedPools.push(poolData);
+    }
+    
+    localStorage.setItem('user_accepted_pools', JSON.stringify(acceptedPools));
+    console.log(`✅ Pool guardada en user_accepted_pools (total: ${acceptedPools.length})`);
+}
+
+/**
+ * Obtiene las pools aceptadas por el usuario
+ */
+function getUserAcceptedPools() {
+    return JSON.parse(localStorage.getItem('user_accepted_pools') || '[]');
+}
+
+/**
+ * Carga las pools aceptadas del usuario al iniciar la app
+ */
+async function loadUserAcceptedPools() {
+    console.log('📥 Cargando pools aceptadas del usuario...');
+    
+    const acceptedPools = getUserAcceptedPools();
+    
+    if (acceptedPools.length > 0) {
+        console.log(`   📝 Encontradas ${acceptedPools.length} pools aceptadas en localStorage`);
+        
+        // Agregar a poolsEvents
+        acceptedPools.forEach(pool => {
+            if (!poolsEvents.find(e => e.id === pool.id)) {
+                poolsEvents.push(pool);
+            }
+        });
+        
+        localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(poolsEvents));
+        console.log('   ✅ Pools aceptadas agregadas a poolsEvents');
+    }
+    
+    // También intentar cargar desde Firestore si está disponible
+    if (FIREBASE_ENABLED && window.db) {
+        try {
+            const firebasePools = await PoolStorage.getAllPools();
+            firebasePools.forEach(pool => {
+                if (!poolsEvents.find(e => e.id === pool.id)) {
+                    poolsEvents.push(pool);
+                }
+            });
+            console.log(`   📡 +${firebasePools.length} pools desde Firestore`);
+        } catch(err) {
+            console.warn('   ⚠️ Error cargando desde Firestore:', err);
+        }
+    }
+}
