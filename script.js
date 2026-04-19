@@ -2243,6 +2243,17 @@ async function checkForSharedPool() {
             localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(poolsEvents));
         }
         
+        // También guardar en Firestore si está disponible (para que el creador lo vea)
+        if (FIREBASE_ENABLED && window.db) {
+            console.log('   📡 Sincronizando pool a Firestore...');
+            try {
+                await PoolStorage.savePool(event);
+                console.log('   ✅ Pool sincronizado a Firestore');
+            } catch(err) {
+                console.warn('   ⚠️ Error sync a Firestore:', err);
+            }
+        }
+        
         // 🔧 FIX: Guardar poolId en appState para aceptar invitación después
         appState.poolId = poolId;
         

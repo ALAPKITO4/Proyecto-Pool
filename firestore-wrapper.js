@@ -77,15 +77,9 @@ const PoolStorage = {
             // Opción 1: Si Firebase está habilitado
             if (FIREBASE_ENABLED && window.db) {
                 let querySnapshot;
-                if (window.auth && window.auth.currentUser) {
-                    // Si hay usuario logueado, filtrar por su UID
-                    querySnapshot = await window.db.collection('pools')
-                        .where('createdByUid', '==', window.auth.currentUser.uid)
-                        .get();
-                } else {
-                    // Si no hay login, traer TODOS los pools (para invitaciones)
-                    querySnapshot = await window.db.collection('pools').get();
-                }
+                // SIEMPRE traer todos los pools de Firestore (sin filtrar por UID porque no hay auth)
+                // Esto permite ver pools creados por otros que aceptaste
+                querySnapshot = await window.db.collection('pools').get();
                 
                 const pools = [];
                 querySnapshot.forEach(doc => {
