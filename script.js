@@ -1508,10 +1508,48 @@ async function acceptPoolInvitation() {
         return;
     }
 
-    // Buscar el pool
+    // Buscar el pool en poolsEvents primero
     let event = poolsEvents.find(e => e.id == poolId);
+    
+    // Si no está en poolsEvents, intentar cargar desde Firestore
+    if (!event && FIREBASE_ENABLED && window.db) {
+        console.log('📡 Pool no en local, buscando en Firestore...');
+        try {
+            event = await PoolStorage.getPoolById(poolId);
+            if (event) {
+                console.log('   ✅ Pool cargado desde Firestore');
+                // Agregar a poolsEvents y localStorage
+                poolsEvents.push(event);
+                localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(poolsEvents));
+            }
+        } catch(err) {
+            console.error('   ❌ Error cargando desde Firestore:', err);
+        }
+    }
+    
+    // Si aún no está, intentar desde URL
     if (!event) {
-        console.error('❌ Pool no encontrado en poolsEvents');
+        console.log('📦 Intentando desde URL...');
+        event = getPoolDataFromURL();
+        if (event) {
+            console.log('   ✅ Pool cargado desde URL');
+            poolsEvents.push(event);
+            localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(poolsEvents));
+            
+            // Guardar en Firestore
+            if (FIREBASE_ENABLED && window.db) {
+                try {
+                    await PoolStorage.savePool(event);
+                    console.log('   ✅ Pool sincronizado a Firestore');
+                } catch(err) {
+                    console.warn('   ⚠️ Error sync a Firestore:', err);
+                }
+            }
+        }
+    }
+
+    if (!event) {
+        console.error('❌ Pool no encontrado en ninguna fuente');
         showNotification('⚠️ Pool no encontrado', 'warning');
         return;
     }
@@ -1521,8 +1559,7 @@ async function acceptPoolInvitation() {
     console.log('   Creado por:', event.createdBy);
     console.log('   Participantes actuales:', event.participantes ? event.participantes.length : 0);
 
-    // 🔧 FIX: Usar findOrCreateParticipant (nueva función)
-    // Esto busca o crea el participante automáticamente
+    // Buscar o crear el participante
     const participant = findOrCreateParticipant(
         event, 
         currentUser.nombre, 
@@ -1546,20 +1583,14 @@ async function acceptPoolInvitation() {
         return;
     }
 
-    // 🔧 FIX: Guardar en Firestore Y localStorage (sincronización dual)
+    // Guardar en Firestore Y localStorage (sincronización dual)
     console.log('💾 Sincronizando datos...');
     
     try {
+        // Guardar en Firestore usando PoolStorage (más robusto)
         if (FIREBASE_ENABLED && window.db) {
             console.log('   📡 Guardando en Firestore...');
-            
-            const poolRef = firebase.firestore().collection('pools').doc(String(poolId));
-            
-            await poolRef.update({
-                participantes: event.participantes,
-                lastUpdated: new Date().toISOString()
-            });
-            
+            await PoolStorage.savePool(event);
             console.log('   ✅ Firestore actualizado correctamente');
         } else {
             console.log('   ⚠️ Firebase no disponible');
@@ -1622,10 +1653,46 @@ async function rejectPoolInvitation() {
         return;
     }
 
-    // Buscar el pool
+    // Buscar el pool en poolsEvents primero
     let event = poolsEvents.find(e => e.id == poolId);
+    
+    // Si no está en poolsEvents, intentar cargar desde Firestore
+    if (!event && FIREBASE_ENABLED && window.db) {
+        console.log('📡 Pool no en local, buscando en Firestore...');
+        try {
+            event = await PoolStorage.getPoolById(poolId);
+            if (event) {
+                console.log('   ✅ Pool cargado desde Firestore');
+                poolsEvents.push(event);
+                localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(poolsEvents));
+            }
+        } catch(err) {
+            console.error('   ❌ Error cargando desde Firestore:', err);
+        }
+    }
+    
+    // Si aún no está, intentar desde URL
     if (!event) {
-        console.error('❌ Pool no encontrado en poolsEvents');
+        console.log('📦 Intentando desde URL...');
+        event = getPoolDataFromURL();
+        if (event) {
+            console.log('   ✅ Pool cargado desde URL');
+            poolsEvents.push(event);
+            localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(poolsEvents));
+            
+            if (FIREBASE_ENABLED && window.db) {
+                try {
+                    await PoolStorage.savePool(event);
+                    console.log('   ✅ Pool sincronizado a Firestore');
+                } catch(err) {
+                    console.warn('   ⚠️ Error sync a Firestore:', err);
+                }
+            }
+        }
+    }
+
+    if (!event) {
+        console.error('❌ Pool no encontrado en ninguna fuente');
         showNotification('⚠️ Pool no encontrado', 'warning');
         return;
     }
@@ -1635,8 +1702,7 @@ async function rejectPoolInvitation() {
     console.log('   Creado por:', event.createdBy);
     console.log('   Participantes actuales:', event.participantes ? event.participantes.length : 0);
 
-    // 🔧 FIX: Usar findOrCreateParticipant (nueva función)
-    // Esto busca o crea el participante automáticamente
+    // Buscar o crear el participante
     const participant = findOrCreateParticipant(
         event, 
         currentUser.nombre, 
@@ -1659,20 +1725,13 @@ async function rejectPoolInvitation() {
         return;
     }
 
-    // 🔧 FIX: Guardar en Firestore Y localStorage (sincronización dual)
+    // Guardar en Firestore Y localStorage (sincronización dual)
     console.log('💾 Sincronizando datos...');
     
     try {
         if (FIREBASE_ENABLED && window.db) {
             console.log('   📡 Guardando en Firestore...');
-            
-            const poolRef = firebase.firestore().collection('pools').doc(String(poolId));
-            
-            await poolRef.update({
-                participantes: event.participantes,
-                lastUpdated: new Date().toISOString()
-            });
-            
+            await PoolStorage.savePool(event);
             console.log('   ✅ Firestore actualizado correctamente');
         } else {
             console.log('   ⚠️ Firebase no disponible');
@@ -2465,18 +2524,29 @@ function updateUI() {
             break;
 
         case 9:
+            // Recargar pools desde Firestore cada vez que entramos
+            console.log('📡 Recargando pools desde Firestore...');
             updatePoolsList().catch(error => console.error('Error cargando pools:', error));
+            
             // Iniciar listener de tiempo real
             if (typeof unsubscribeAllPools === 'function') {
                 unsubscribeAllPools();
             }
             if (FIREBASE_ENABLED && window.db) {
-                unsubscribeAllPools = subscribeToAllPools((updatedPools) => {
-                    console.log('🔄 更新: pools cambiados en tiempo real', updatedPools.length);
-                    poolsEvents = updatedPools;
+                // Recargar primero los pools más recientes
+                PoolStorage.getAllPools().then(firebasePools => {
+                    poolsEvents = firebasePools;
+                    console.log(`📡 ${firebasePools.length} pools recargados de Firestore`);
                     updatePoolsList();
-                });
-                console.log('👂 Listener de tiempo real activado para Mis Pools');
+                    
+                    // Luego activar listener
+                    unsubscribeAllPools = subscribeToAllPools((updatedPools) => {
+                        console.log('🔄 Cambio detectado en Firestore:', updatedPools.length);
+                        poolsEvents = updatedPools;
+                        updatePoolsList();
+                    });
+                    console.log('👂 Listener de tiempo real activado para Mis Pools');
+                }).catch(err => console.error('Error:', err));
             }
             break;
 
