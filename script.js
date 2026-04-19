@@ -111,6 +111,96 @@ const MAX_CHILDREN = 4;
 const MIN_PARENTS = 1;
 
 /* ============================================
+   FUNCIÓN DE DEBUGGING (FIX: Issue #6)
+   ============================================ */
+
+/**
+ * ✅ FUNCIÓN DE DEBUGGING PARA CONSOLA
+ * 
+ * Úsala escribiendo en la consola:
+ * DEBUG_showStatus()
+ * 
+ * Muestra:
+ * - Usuario actual
+ * - Pools disponibles
+ * - Participantes y sus estados
+ * - Sincronización con Firestore
+ */
+function DEBUG_showStatus() {
+    console.clear();
+    console.log('%c=== ESTADO COMPLETO DE POOL APP ===', 'color: #FF6B35; font-size: 16px; font-weight: bold;');
+    
+    // Usuario
+    console.log('%c👤 USUARIO ACTUAL', 'color: #4CAF50; font-weight: bold; font-size: 12px;');
+    console.log('   Nombre:', currentUser.nombre || '(sin perfil)');
+    console.log('   Teléfono:', currentUser.telefono || '(no ingresado)');
+    console.log('   UID:', currentUser.uid || '(no autenticado)');
+    console.log('   Email:', currentUser.email || '(no disponible)');
+    console.log('   Foto:', currentUser.foto ? '✅ Sí' : '❌ No');
+    
+    // Estado de la app
+    console.log('%c📊 ESTADO DE LA APP', 'color: #2196F3; font-weight: bold; font-size: 12px;');
+    console.log('   Step actual:', getCurrentStep());
+    console.log('   Pool ID actual:', appState.poolId || '(ninguno)');
+    console.log('   Niños:', appState.children || []);
+    console.log('   Padres:', appState.parents || []);
+    console.log('   Lleva:', appState.driverParent || '(sin asignar)');
+    console.log('   Trae:', appState.returnParent || '(sin asignar)');
+    console.log('   Destino:', appState.location || '(sin definir)');
+    console.log('   Fecha:', appState.date || '(sin definir)');
+    console.log('   Hora:', `${appState.startTime} - ${appState.endTime}` || '(sin definir)');
+    
+    // Pools guardados
+    console.log('%c📅 POOLS GUARDADOS', 'color: #9C27B0; font-weight: bold; font-size: 12px;');
+    if (poolsEvents.length === 0) {
+        console.log('   ⚠️ Sin pools guardados');
+    } else {
+        poolsEvents.forEach((pool, idx) => {
+            console.group(`   Pool #${idx + 1} (ID: ${pool.id})`);
+            console.log('Ubicación:', pool.location);
+            console.log('Creado por:', pool.createdBy);
+            console.log('Fecha:', pool.date);
+            console.log('Hora:', `${pool.startTime} - ${pool.endTime}`);
+            console.log('Niños:', (pool.children || []).join(', '));
+            console.log('Padres:', (pool.parents || []).join(', '));
+            
+            // Participantes
+            if (pool.participantes && pool.participantes.length > 0) {
+                console.group('Participantes:');
+                pool.participantes.forEach(p => {
+                    const status = p.estado === 'aceptado' ? '✅' : p.estado === 'rechazado' ? '❌' : '⏳';
+                    console.log(`${status} ${p.nombre} (${p.telefono || 'sin teléfono'}) - ${p.estado}`);
+                });
+                console.groupEnd();
+            } else {
+                console.log('Participantes: (sin registrar)');
+            }
+            console.groupEnd();
+        });
+    }
+    
+    // Firebase
+    console.log('%c🔥 FIREBASE', 'color: #FF9800; font-weight: bold; font-size: 12px;');
+    console.log('   Habilitado:', FIREBASE_ENABLED ? '✅ Sí' : '❌ No');
+    console.log('   Conectado:', window.db ? '✅ Sí' : '❌ No');
+    console.log('   Auth:', window.auth ? '✅ Sí' : '❌ No');
+    console.log('   Usuario autenticado:', authState.isAuthenticated ? '✅ Sí' : '❌ No');
+    
+    // localStorage
+    console.log('%c💾 LOCAL STORAGE', 'color: #00BCD4; font-weight: bold; font-size: 12px;');
+    const userProfile = localStorage.getItem(STORAGE_KEY_USER);
+    const events = localStorage.getItem(STORAGE_KEY_EVENTS);
+    console.log('   Perfil guardado:', userProfile ? '✅ Sí' : '❌ No');
+    console.log('   Eventos guardados:', events ? `✅ Sí (${JSON.parse(events).length} pools)` : '❌ No');
+    
+    console.log('%c=== FIN DEL ESTADO ===', 'color: #FF6B35; font-size: 16px; font-weight: bold;');
+    console.log('%cPara más detalles, revisa los pasos anteriores', 'color: #666; font-size: 11px;');
+}
+
+// Exponer función de debugging globalmente
+window.DEBUG_showStatus = DEBUG_showStatus;
+
+/* ============================================
    FUNCIONES DE USUARIO Y PERFIL
    ============================================ */
 
@@ -896,6 +986,11 @@ function calculatePoolStatus(invitados) {
 
 /**
  * Verifica si dos nombres coinciden (match parcial)
+ * ✅ NORMALIZACIÓN MEJORADA (FIX: Issue #1)
+ * - Convierte a minúsculas
+ * - Aplica trim()
+ * - Elimina espacios múltiples
+ * 
  * @param {string} name1 - Primer nombre
  * @param {string} name2 - Segundo nombre
  * @returns {boolean} - True si hay coincidencia
@@ -903,11 +998,24 @@ function calculatePoolStatus(invitados) {
 function isNameMatch(name1, name2) {
     if (!name1 || !name2) return false;
     
-    const clean1 = name1.toLowerCase().trim();
-    const clean2 = name2.toLowerCase().trim();
+    // 🔧 FIX: Normalización robusta
+    const normalize = (str) => {
+        return str
+            .toLowerCase()
+            .trim()
+            .replace(/\s+/g, ' '); // Eliminar espacios múltiples
+    };
+    
+    const clean1 = normalize(name1);
+    const clean2 = normalize(name2);
+    
+    console.log(`🔍 Comparando: "${clean1}" == "${clean2}"`);
     
     // Match exacto
-    if (clean1 === clean2) return true;
+    if (clean1 === clean2) {
+        console.log('✅ Match exacto encontrado');
+        return true;
+    }
     
     // Match parcial: si uno contiene el otro
     // Ejemplo: "Juan" en "Juan Pérez"
@@ -915,7 +1023,54 @@ function isNameMatch(name1, name2) {
     const parts2 = clean2.split(' ');
     
     // Si al menos el primer nombre coincide
-    return parts1[0] === parts2[0];
+    const firstNameMatch = parts1[0] === parts2[0];
+    if (firstNameMatch) {
+        console.log(`✅ Match parcial: primer nombre "${parts1[0]}" coincide`);
+    }
+    
+    return firstNameMatch;
+}
+
+/**
+ * ✅ NUEVA FUNCIÓN (FIX: Issue #2)
+ * Busca un participante en la pool o lo crea si no existe
+ * 
+ * @param {Object} event - El objeto pool
+ * @param {string} userName - Nombre del usuario a buscar/crear
+ * @param {string} userPhone - Teléfono del usuario (para crear)
+ * @param {string} newStatus - Estado inicial (por defecto: 'pendiente')
+ * @returns {Object} - El participante encontrado o creado
+ */
+function findOrCreateParticipant(event, userName, userPhone = '', newStatus = 'pendiente') {
+    console.log(`🔍 Buscando/Creando participante: "${userName}" en pool ${event.id}`);
+    
+    // Inicializar array de participantes si no existe
+    if (!event.participantes) {
+        console.log('⚠️ Array participantes vacío, inicializando...');
+        event.participantes = [];
+    }
+    
+    // Buscar participante existente
+    let participant = event.participantes.find(p => isNameMatch(p.nombre, userName));
+    
+    if (participant) {
+        console.log(`✅ Participante encontrado: ${participant.nombre} (estado: ${participant.estado})`);
+        return participant;
+    }
+    
+    // Si no existe, crear participante nuevo
+    console.log(`➕ Participante NO encontrado, agregando: ${userName}`);
+    const newParticipant = {
+        nombre: userName,
+        telefono: userPhone,
+        estado: newStatus,
+        createdAt: new Date().toISOString()
+    };
+    
+    event.participantes.push(newParticipant);
+    console.log(`✅ Participante creado: ${newParticipant.nombre} con estado "${newParticipant.estado}"`);
+    
+    return newParticipant;
 }
 
 /**
@@ -1310,65 +1465,82 @@ function showNotification(message, type = 'info') {
 }
 
 /**
- * Simula la aceptación de una invitación
+ * ✅ ACEPTAR INVITACIÓN - VERSIÓN MEJORADA (FIX: Issue #1, #2, #4)
+ * 
+ * Cambios:
+ * - Usa findOrCreateParticipant para agregar automáticamente si no existe
+ * - Normalización robusta de nombres
+ * - Sincroniza correctamente con Firestore
+ * - Mejor manejo de errores y logs
+ * 
+ * @returns {void}
  */
 async function acceptPoolInvitation() {
     const urlParams = new URLSearchParams(window.location.search);
     const poolId = urlParams.get('poolId') || appState.poolId;
     
-    console.log('📝 Aceptando invitación - PoolId:', poolId, 'Usuario:', currentUser.nombre);
+    console.log('📝 ACEPTANDO INVITACIÓN');
+    console.log('   PoolId:', poolId);
+    console.log('   Usuario actual:', currentUser.nombre, `(${currentUser.telefono})`);
     
+    // Validaciones
     if (!poolId) {
+        console.error('❌ Sin poolId');
         showNotification('⚠️ Pool no encontrado', 'warning');
         return;
     }
 
     if (!hasUserProfile()) {
+        console.error('❌ Usuario sin perfil completo');
         showNotification('⚠️ Debes completar tu perfil primero', 'warning');
         goToStep(0);
         return;
     }
 
+    // Buscar el pool
     let event = poolsEvents.find(e => e.id == poolId);
     if (!event) {
+        console.error('❌ Pool no encontrado en poolsEvents');
         showNotification('⚠️ Pool no encontrado', 'warning');
         return;
     }
 
     console.log('✅ Pool encontrado:', event.location);
+    console.log('   ID:', event.id);
+    console.log('   Creado por:', event.createdBy);
+    console.log('   Participantes actuales:', event.participantes ? event.participantes.length : 0);
 
-    // 🔧 FIX: Buscar y actualizar participante
-    if (!event.participantes) {
-        event.participantes = [];
-    }
+    // 🔧 FIX: Usar findOrCreateParticipant (nueva función)
+    // Esto busca o crea el participante automáticamente
+    const participant = findOrCreateParticipant(
+        event, 
+        currentUser.nombre, 
+        currentUser.telefono, 
+        'pendiente'
+    );
 
-    let found = false;
-    event.participantes = event.participantes.map(p => {
-        const isMatch = isNameMatch(p.nombre, currentUser.nombre);
+    // Actualizar el estado del participante a "aceptado"
+    if (participant) {
+        console.log(`📝 Actualizando participante: ${participant.nombre}`);
+        const oldStatus = participant.estado;
         
-        if (isMatch && p.estado !== 'aceptado') {
-            console.log('✅ Encontrado participante:', p.nombre);
-            p.estado = 'aceptado';
-            p.telefono = currentUser.telefono;
-            p.acceptedAt = new Date().toISOString();
-            found = true;
-        }
+        participant.estado = 'aceptado';
+        participant.telefono = currentUser.telefono;
+        participant.acceptedAt = new Date().toISOString();
         
-        return p;
-    });
-
-    if (!found) {
-        showNotification('⚠️ Tu nombre no está en la lista', 'warning');
-        console.warn('Usuario no encontrado en participantes:', currentUser.nombre);
+        console.log(`✅ Estado actualizado: "${oldStatus}" → "aceptado"`);
+    } else {
+        console.error('❌ No se pudo crear/encontrar participante');
+        showNotification('❌ Error al procesar participante', 'warning');
         return;
     }
 
-    console.log('✅ Actualizando estado en Firestore...');
+    // 🔧 FIX: Guardar en Firestore Y localStorage (sincronización dual)
+    console.log('💾 Sincronizando datos...');
     
-    // 🔧 FIX: Guardar en Firestore - actualizar array participantes
     try {
         if (FIREBASE_ENABLED && window.db) {
-            console.log('📡 Guardando en Firestore...');
+            console.log('   📡 Guardando en Firestore...');
             
             const poolRef = firebase.firestore().collection('pools').doc(String(poolId));
             
@@ -1377,99 +1549,140 @@ async function acceptPoolInvitation() {
                 lastUpdated: new Date().toISOString()
             });
             
-            console.log('✅ Guardado en Firestore - Participantes actualizados');
+            console.log('   ✅ Firestore actualizado correctamente');
         } else {
-            console.log('📝 Firebase no disponible, usando localStorage');
-            await PoolStorage.savePool(event).catch(err => console.warn('Error en PoolStorage:', err));
+            console.log('   ⚠️ Firebase no disponible');
         }
+        
+        // Siempre guardar en localStorage (backup)
+        console.log('   📝 Guardando en localStorage...');
+        const updated = poolsEvents.map(e => e.id === event.id ? event : e);
+        localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(updated));
+        poolsEvents = updated;
+        console.log('   ✅ localStorage actualizado');
+        
     } catch (error) {
-        console.error('❌ Error guardando:', error);
+        console.error('❌ Error en sincronización:', error);
+        // Fallback final
         localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(poolsEvents));
     }
-    
-    localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(poolsEvents));
 
-    // 🔧 FIX: Mostrar resumen de estados
-    showParticipantsSummary(poolId);
+    // Mostrar confirmación
+    showNotification('✅ ¡Invitación aceptada!', 'success');
+    console.log('✅ ACEPTACIÓN COMPLETADA - Redirigiendo...');
 
-    showNotification('✅ Aceptaste la invitación!', 'success');
-    console.log('✅ Invitación aceptada correctamente');
-
+    // Navegar a detalles del pool
     setTimeout(() => {
         showPoolDetails(parseInt(poolId));
     }, 1500);
 }
 
 /**
- * Rechaza una invitación de pool
- * 🔧 FIX: Ahora guarda el rechazo en Firebase
+ * ✅ RECHAZAR INVITACIÓN - VERSIÓN MEJORADA (FIX: Issue #3, #2, #5)
+ * 
+ * Cambios:
+ * - Usa findOrCreateParticipant para agregar automáticamente si no existe
+ * - Normalización robusta de nombres
+ * - Sincroniza correctamente con Firestore
+ * - Mejor manejo de errores y logs
+ * 
  * @returns {void}
  */
 async function rejectPoolInvitation() {
     const urlParams = new URLSearchParams(window.location.search);
     const poolId = urlParams.get('poolId') || appState.poolId;
     
-    console.log('🚫 Rechazando invitación - PoolId:', poolId, 'Usuario:', currentUser.nombre);
+    console.log('🚫 RECHAZANDO INVITACIÓN');
+    console.log('   PoolId:', poolId);
+    console.log('   Usuario actual:', currentUser.nombre, `(${currentUser.telefono})`);
     
+    // Validación de perfil
     if (!hasUserProfile()) {
+        console.error('❌ Usuario sin perfil completo');
         showNotification('⚠️ Debes completar tu perfil primero', 'warning');
         goToStep(0);
         return;
     }
 
-    // 🔧 FIX: Buscar pool y actualizar estado a rechazado
-    if (poolId) {
-        let event = poolsEvents.find(e => e.id == poolId);
+    // Validación de poolId
+    if (!poolId) {
+        console.error('❌ Sin poolId');
+        showNotification('⚠️ Pool no encontrado', 'warning');
+        return;
+    }
+
+    // Buscar el pool
+    let event = poolsEvents.find(e => e.id == poolId);
+    if (!event) {
+        console.error('❌ Pool no encontrado en poolsEvents');
+        showNotification('⚠️ Pool no encontrado', 'warning');
+        return;
+    }
+
+    console.log('✅ Pool encontrado:', event.location);
+    console.log('   ID:', event.id);
+    console.log('   Creado por:', event.createdBy);
+    console.log('   Participantes actuales:', event.participantes ? event.participantes.length : 0);
+
+    // 🔧 FIX: Usar findOrCreateParticipant (nueva función)
+    // Esto busca o crea el participante automáticamente
+    const participant = findOrCreateParticipant(
+        event, 
+        currentUser.nombre, 
+        currentUser.telefono, 
+        'pendiente'
+    );
+
+    // Actualizar el estado del participante a "rechazado"
+    if (participant) {
+        console.log(`📝 Actualizando participante: ${participant.nombre}`);
+        const oldStatus = participant.estado;
         
-        if (event) {
-            if (!event.participantes) {
-                event.participantes = [];
-            }
+        participant.estado = 'rechazado';
+        participant.rejectedAt = new Date().toISOString();
+        
+        console.log(`✅ Estado actualizado: "${oldStatus}" → "rechazado"`);
+    } else {
+        console.error('❌ No se pudo crear/encontrar participante');
+        showNotification('❌ Error al procesar participante', 'warning');
+        return;
+    }
 
-            // Buscar usuario y cambiar estado a rechazado
-            event.participantes = event.participantes.map(p => {
-                const isMatch = isNameMatch(p.nombre, currentUser.nombre);
-                if (isMatch) {
-                    console.log('❌ Cambiando estado a rechazado:', p.nombre);
-                    p.estado = 'rechazado';
-                    p.rejectedAt = new Date().toISOString();
-                }
-                return p;
-            });
-
-            // Guardar en Firestore
-            try {
-                if (FIREBASE_ENABLED && window.db) {
-                    console.log('📡 Guardando rechazo en Firestore...');
-                    
-                    const poolRef = firebase.firestore().collection('pools').doc(String(poolId));
-                    
-                    await poolRef.update({
-                        participantes: event.participantes,
-                        lastUpdated: new Date().toISOString()
-                    });
-                    
-                    console.log('✅ Rechazo guardado en Firestore');
-                } else {
-                    console.log('📝 Firebase no disponible, usando localStorage');
-                    await PoolStorage.savePool(event).catch(err => console.warn('Error en PoolStorage:', err));
-                }
-            } catch (error) {
-                console.error('❌ Error guardando rechazo:', error);
-                localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(poolsEvents));
-            }
+    // 🔧 FIX: Guardar en Firestore Y localStorage (sincronización dual)
+    console.log('💾 Sincronizando datos...');
+    
+    try {
+        if (FIREBASE_ENABLED && window.db) {
+            console.log('   📡 Guardando en Firestore...');
             
-            localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(poolsEvents));
+            const poolRef = firebase.firestore().collection('pools').doc(String(poolId));
+            
+            await poolRef.update({
+                participantes: event.participantes,
+                lastUpdated: new Date().toISOString()
+            });
+            
+            console.log('   ✅ Firestore actualizado correctamente');
+        } else {
+            console.log('   ⚠️ Firebase no disponible');
         }
+        
+        // Siempre guardar en localStorage (backup)
+        console.log('   📝 Guardando en localStorage...');
+        const updated = poolsEvents.map(e => e.id === event.id ? event : e);
+        localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(updated));
+        poolsEvents = updated;
+        console.log('   ✅ localStorage actualizado');
+        
+    } catch (error) {
+        console.error('❌ Error en sincronización:', error);
+        // Fallback final
+        localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(poolsEvents));
     }
-    
-    // 🔧 FIX: Mostrar resumen de estados después de rechazar
-    if (poolId) {
-        showParticipantsSummary(poolId);
-    }
-    
+
+    // Mostrar confirmación
     showNotification('👋 Invitación rechazada', 'info');
-    console.log('✅ Rechazo completado');
+    console.log('✅ RECHAZO COMPLETADO - Redirigiendo...');
     
     // Limpiar estado
     appState.poolId = null;
@@ -1547,13 +1760,26 @@ function copyInviteLink(poolId) {
  * 🔧 FIX: Ahora sincroniza cambios de participantes
  * @param {number} poolId - ID del pool a monitorear
  */
+/**
+ * ✅ SINCRONIZACIÓN EN TIEMPO REAL (FIX: Issue #5)
+ * 
+ * Mejoras:
+ * - Logs detallados de cambios detectados
+ * - Manejo robusto de participantes
+ * - Actualización inteligente de UI
+ * - Sincronización bidireccional (Firebase ↔ localStorage)
+ * 
+ * 🔧 FIX: Ahora sincroniza cambios de participantes
+ * @param {number} poolId - ID del pool a monitorear
+ */
 function subscribeToPoolUpdates(poolId) {
     if (!FIREBASE_ENABLED || !window.db) {
         console.log('⚠️ Firebase no disponible para sincronización');
         return;
     }
     
-    console.log('🔄 Subscribiendo a actualizaciones del pool:', poolId);
+    console.log('📡 INICIANDO SINCRONIZACIÓN EN TIEMPO REAL');
+    console.log('   Pool ID:', poolId);
     
     try {
         const poolRef = firebase.firestore().collection('pools').doc(String(poolId));
@@ -1561,45 +1787,63 @@ function subscribeToPoolUpdates(poolId) {
         const unsubscribe = poolRef.onSnapshot((docSnapshot) => {
             if (docSnapshot.exists) {
                 const updatedPool = docSnapshot.data();
-                console.log('🔄 Pool actualizado en tiempo real:', updatedPool.location);
+                console.log('🔄 CAMBIO DETECTADO EN FIRESTORE');
+                console.log('   Ubicación:', updatedPool.location);
+                console.log('   Última actualización:', new Date(updatedPool.lastUpdated).toLocaleTimeString());
                 
-                // 🔧 FIX: Mostrar cambios de participantes
-                if (updatedPool.participantes) {
-                    console.log('👥 Participantes actuales:', updatedPool.participantes.map(p => `${p.nombre}(${p.estado})`).join(', '));
+                // 🔧 FIX: Mostrar cambios de participantes con detalles
+                if (updatedPool.participantes && updatedPool.participantes.length > 0) {
+                    console.log('👥 PARTICIPANTES ACTUALIZADOS:');
+                    updatedPool.participantes.forEach(p => {
+                        console.log(`   • ${p.nombre}: ${p.estado}${p.acceptedAt ? ` (confirmó a las ${new Date(p.acceptedAt).toLocaleTimeString()})` : ''}${p.rejectedAt ? ` (rechazó a las ${new Date(p.rejectedAt).toLocaleTimeString()})` : ''}`);
+                    });
+                } else {
+                    console.log('👥 Sin participantes registrados');
                 }
                 
-                // Actualizar en el array local
+                // Actualizar en el array local (sincronización bidireccional)
                 const index = poolsEvents.findIndex(e => e.id == poolId);
                 if (index >= 0) {
+                    const oldPool = poolsEvents[index];
                     poolsEvents[index] = { ...poolsEvents[index], ...updatedPool };
                     localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(poolsEvents));
                     
+                    console.log('✅ Datos sincronizados con localStorage');
+                    
                     // Si estamos en Step-10 o Step-11, actualizar UI
                     const currentStep = getCurrentStep();
-                    if (currentStep === 10 || currentStep === 11) {
-                        console.log('🔄 Actualizando UI del pool');
-                        if (currentStep === 10) {
-                            document.getElementById('invDateTime').textContent = 
-                                `${formatDate(updatedPool.date)} ${formatTime(updatedPool.startTime)} - ${formatTime(updatedPool.endTime)}`;
-                        } else if (currentStep === 11) {
-                            showPoolDetails(poolId);
-                        }
+                    console.log('   Paso actual:', currentStep);
+                    
+                    if (currentStep === 10) {
+                        console.log('   ↻ Actualizando pantalla de invitación (Step-10)...');
+                        document.getElementById('invDateTime').textContent = 
+                            `${formatDate(updatedPool.date)} ${formatTime(updatedPool.startTime)} - ${formatTime(updatedPool.endTime)}`;
+                    } else if (currentStep === 11) {
+                        console.log('   ↻ Recargando detalles del pool (Step-11)...');
+                        showPoolDetails(poolId);
+                    } else if (currentStep === 9) {
+                        console.log('   ↻ Actualizando lista de pools (Step-9)...');
+                        updatePoolsList();
                     }
+                } else {
+                    console.warn('⚠️ Pool local no encontrado, agregando nuevo...');
+                    poolsEvents.push(updatedPool);
+                    localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(poolsEvents));
                 }
             } else {
                 console.log('⚠️ Pool no encontrado en Firestore');
             }
         }, (error) => {
-            console.error('❌ Error en suscripción:', error);
+            console.error('❌ Error en suscripción de Firestore:', error);
         });
         
         // Guardar unsubscribe para limpiar después
         window._poolUnsubscribers = window._poolUnsubscribers || {};
         window._poolUnsubscribers[poolId] = unsubscribe;
-        console.log('✅ Sincronización en tiempo real activa');
+        console.log('✅ Listener de Firestore activo para pool:', poolId);
         
     } catch (error) {
-        console.error('❌ Error suscribiéndose:', error);
+        console.error('❌ Error suscribiéndose a Firestore:', error);
     }
 }
 
@@ -1905,11 +2149,14 @@ function confirmPoolStatus(poolId, status) {
 }
 
 /**
- * Verifica si hay un pool compartido en la URL
- */
-/**
- * Verifica si hay un pool compartido en la URL
- * FASE 2: Ahora busca en Firestore antes que URL parameters
+ * ✅ VERIFICAR POOL COMPARTIDO - VERSIÓN MEJORADA (FIX: Issue #6)
+ * 
+ * Mejoras:
+ * - Logs detallados de cada paso
+ * - Muestra dónde se encuentra el pool
+ * - Inicia sincronización en tiempo real
+ * - Mejor manejo de errores
+ * 
  * Soporta tres formas de compartir:
  * 1. Usando Firestore (Firebase habilitado): busca por poolId
  * 2. Usando localStorage (si ambos en mismo dispositivo): ?poolId=123
@@ -1919,38 +2166,68 @@ async function checkForSharedPool() {
     const urlParams = new URLSearchParams(window.location.search);
     const poolId = urlParams.get('poolId');
     
-    if (!poolId) return;
+    console.log('🔍 VERIFICANDO POOL COMPARTIDO');
+    console.log('   URL completa:', window.location.href);
+    console.log('   poolId:', poolId);
     
-    console.log('🔍 Buscando pool:', poolId);
+    if (!poolId) {
+        console.log('   ⚠️ Sin poolId en URL, saltando verificación');
+        return;
+    }
+    
     let event = null;
     
     // PRIORIDAD 1: Intentar decodificar desde URL (datos embebidos)
+    console.log('📦 PRIORIDAD 1: Buscando en datos embebidos de URL...');
     const poolDataFromURL = getPoolDataFromURL();
     if (poolDataFromURL) {
-        console.log('📦 Pool encontrado en URL');
+        console.log('   ✅ Pool encontrado en URL');
+        console.log('   Ubicación:', poolDataFromURL.location);
+        console.log('   Creado por:', poolDataFromURL.createdBy || 'desconocido');
         event = poolDataFromURL;
+    } else {
+        console.log('   ⚠️ Sin datos embebidos en URL');
     }
     
     // PRIORIDAD 2: Buscar en Firestore
     if (!event && FIREBASE_ENABLED && window.db) {
+        console.log('📡 PRIORIDAD 2: Buscando en Firestore...');
         try {
-            console.log('📡 Buscando en Firestore...');
             event = await PoolStorage.getPoolById(poolId);
-            if (event) console.log('✅ Pool encontrado en Firestore');
+            if (event) {
+                console.log('   ✅ Pool encontrado en Firestore');
+                console.log('   Ubicación:', event.location);
+                console.log('   Creado por:', event.createdBy || 'desconocido');
+            } else {
+                console.log('   ⚠️ Pool no encontrado en Firestore');
+            }
         } catch (error) {
-            console.warn('⚠️ Error en Firestore:', error);
+            console.warn('   ❌ Error consultando Firestore:', error.message);
         }
+    } else if (!event) {
+        console.log('📡 PRIORIDAD 2: Firebase no disponible, saltando...');
     }
     
     // PRIORIDAD 3: Buscar en localStorage
     if (!event) {
+        console.log('📝 PRIORIDAD 3: Buscando en localStorage...');
         event = poolsEvents.find(e => e.id == poolId);
-        if (event) console.log('📝 Pool encontrado en localStorage');
+        if (event) {
+            console.log('   ✅ Pool encontrado en localStorage');
+            console.log('   Ubicación:', event.location);
+            console.log('   Creado por:', event.createdBy || 'desconocido');
+        } else {
+            console.log('   ⚠️ Pool no encontrado en localStorage');
+        }
     }
     
+    // Pool encontrado en alguna fuente
     if (event) {
+        console.log('✅ POOL LOCALIZADO - Preparando pantalla de invitación');
+        
         // Guardar en localStorage si no existe
         if (!poolsEvents.find(e => e.id === event.id)) {
+            console.log('   📝 Agregando pool a localStorage...');
             poolsEvents.push(event);
             localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(poolsEvents));
         }
@@ -1959,6 +2236,7 @@ async function checkForSharedPool() {
         appState.poolId = poolId;
         
         // Cargar datos del pool en la pantalla de invitación
+        console.log('🎨 Cargando datos en UI...');
         document.getElementById('invLocation').textContent = event.location || 'No especificado';
         document.getElementById('invDateTime').textContent = 
             `${formatDate(event.date)} ${formatTime(event.startTime)} - ${formatTime(event.endTime)}`;
@@ -1974,14 +2252,20 @@ async function checkForSharedPool() {
         }
         
         // 🔧 FIX: Sincronizar en tiempo real si hay poolId (nuevo)
+        console.log('📡 Configurando sincronización en tiempo real...');
         if (FIREBASE_ENABLED && window.db && poolId) {
+            console.log('   ✅ Iniciando listener de Firestore');
             subscribeToPoolUpdates(poolId);
+        } else {
+            console.log('   ⚠️ Firebase no disponible para sincronización');
         }
         
         // Mostrar pantalla de invitación
+        console.log('🎬 Mostrando pantalla de invitación (Step-10)');
         goToStep(10);
     } else {
-        console.log('❌ Pool no encontrado en ninguna fuente');
+        console.error('❌ POOL NO ENCONTRADO en ninguna fuente');
+        console.error('   Buscado en: URL, Firestore, localStorage');
         showNotification('⚠️ Pool no encontrado. El link puede haber expirado.', 'warning');
         setTimeout(() => goToStep(1), 2000);
     }
