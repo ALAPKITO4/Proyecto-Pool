@@ -1,0 +1,135 @@
+🚀 INSTRUCCIONES RÁPIDAS PARA EJECUTAR
+======================================
+
+📁 Ubicación del Proyecto:
+c:\Users\Usuario\Videos\Proyecto Pool\PlanificadorEncuentros\
+
+---
+
+OPCIÓN 1: DOBLE CLIC DIRECTO ⭐ (MÁS FÁCIL)
+============================================
+
+1. Abre el Explorador de Archivos de Windows
+2. Ve a: c:\Users\Usuario\Videos\Proyecto Pool\PlanificadorEncuentros\
+3. Haz DOBLE CLIC en el archivo "index.html"
+4. ¡Listo! Se abrirá en tu navegador predeterminado
+
+---
+
+OPCIÓN 2: CON VISUAL STUDIO CODE
+=================================
+
+1. Abre Visual Studio Code
+2. Ve a File → Open Folder
+3. Selecciona: c:\Users\Usuario\Videos\Proyecto Pool\PlanificadorEncuentros\
+4. Haz clic derecho en "index.html"
+5. Selecciona "Open with Live Server" (si tienes la extensión)
+   O simplemente: "Open in Default Browser"
+
+---
+
+OPCIÓN 3: DESDE LA TERMINAL (Windows)
+======================================
+
+1. Presiona Windows + R
+2. Escribe "cmd" y presiona Enter
+3. Escribe estos comandos:
+
+   cd C:\Users\Usuario\Videos\Proyecto Pool\PlanificadorEncuentros
+   start index.html
+
+4. ¡La app se abrirá en tu navegador!
+
+---
+
+ARCHIVOS DE LA APLICACIÓN
+==========================
+
+📄 index.html   → Estructura de la aplicación (6 pantallas)
+🎨 style.css    → Estilos bonitos y responsive
+⚙️ script.js    → Lógica de la app (sin errores)
+📖 README.md    → Documentación completa
+
+---
+
+¿QUÉ DEBERÍA VER?
+=================
+
+✅ Pantalla 1: "Planifica tu encuentro" con botón "Comenzar"
+✅ Pantalla 2: Campo para agregar personas
+✅ Pantalla 3: Campo para elegir ubicación
+✅ Pantalla 4: Selectores de hora
+✅ Pantalla 5: Resumen de todo
+✅ Pantalla 6: Confirmación exitosa ✅
+
+---
+
+VALIDACIONES QUE FUNCIONAN
+===========================
+
+❌ No permite nombres vacíos
+❌ No permite nombres duplicados
+❌ No permite ubicación vacía
+❌ No permite hora de fin ≤ a la de inicio
+❌ Requiere al menos 1 persona
+
+---
+
+💾 DATOS GUARDADOS
+==================
+
+La app guarda automáticamente:
+- El plan actual (en cada cambio)
+- El plan finalizado (al confirmar)
+
+Los datos persisten aunque cierres el navegador.
+
+---
+
+NAVEGADORES COMPATIBLES
+========================
+
+✅ Google Chrome
+✅ Mozilla Firefox
+✅ Microsoft Edge
+✅ Safari
+✅ Opera
+
+---
+
+PROBLEMAS COMUNES
+=================
+
+❓ "No abre el archivo"
+→ Asegúrate de tener un navegador instalado
+→ Intenta clic derecho → Abrir con → Chrome/Firefox
+
+❓ "Los estilos no se ven"
+→ Recarga la página (F5 o Ctrl+R)
+→ Limpia el cache (Ctrl+Shift+Delete)
+
+❓ "Los datos no se guardan"
+→ Verifica que localStorage esté habilitado
+→ Intenta en modo normal (no privado)
+
+---
+
+CARACTERÍSTICAS PRINCIPALES
+============================
+
+✨ 6 pasos interactivos
+✨ Validaciones en tiempo real
+✨ Diseño moderno y responsive
+✨ Guardado automático de datos
+✨ Transiciones suaves
+✨ Botón de WhatsApp integrado
+✨ Sin dependencias externas
+✨ Código limpio y bien documentado
+
+---
+
+¡YA ESTÁS LISTO PARA USAR LA APP! 🎉
+
+Cualquier pregunta, revisa el README.md
+
+Disfruta planificando tus encuentros 📅

@@ -1,0 +1,275 @@
+✅ GUÍA DE PRUEBA - VERIFICAR QUE TODO FUNCIONA
+==============================================
+
+Después de abrir index.html, prueba esto para verificar que todo funciona:
+
+---
+
+PRUEBA 1: PANTALLA DE BIENVENIDA
+================================
+
+✅ Deberías ver:
+   - Icono 📅
+   - Título "Planifica tu encuentro"
+   - Subtítulo "Organiza reuniones de forma rápida y sencilla"
+   - Botón verde "Comenzar"
+
+✅ Prueba:
+   1. Haz clic en "Comenzar"
+   2. Deberías ir a la pantalla de personas
+
+---
+
+PRUEBA 2: AGREGAR PERSONAS
+============================
+
+✅ Deberías ver:
+   - Campo de texto "Escribe un nombre"
+   - Botón "Agregar"
+   - Botón "Agregar desde WhatsApp"
+   - Botón "Continuar" (gris/deshabilitado)
+
+✅ Prueba agregando personas:
+
+   CASO A: Nombre vacío
+   • Escribe solo espacios
+   • Haz clic "Agregar"
+   • RESULTADO: Mensaje de error "El nombre no puede estar vacío"
+
+   CASO B: Nombre corto
+   • Escribe "A"
+   • Haz clic "Agregar"
+   • RESULTADO: Mensaje "El nombre debe tener al menos 2 caracteres"
+
+   CASO C: Nombre válido
+   • Escribe "Juan"
+   • Haz clic "Agregar"
+   • RESULTADO: Aparece etiqueta verde con "Juan" y ✕
+
+   CASO D: Nombre duplicado
+   • Escribe "Juan" de nuevo
+   • Haz clic "Agregar"
+   • RESULTADO: Mensaje "Esta persona ya está en la lista"
+
+   CASO E: Agregar más personas
+   • Escribe "María"
+   • Haz clic "Agregar"
+   • Escribe "Carlos"
+   • Presiona Enter (o haz clic Agregar)
+   • RESULTADO: Ahora hay 3 personas en la lista
+
+✅ Prueba otras funciones:
+   • Haz clic en la ✕ de una persona → se elimina
+   • El botón "Continuar" ahora está verde y habilitado
+   • Haz clic en "Agregar desde WhatsApp" → se abre WhatsApp
+
+   ANTES DE CONTINUAR: Vuelve a agregar al menos 1 persona
+
+---
+
+PRUEBA 3: SELECCIONAR UBICACIÓN
+================================
+
+✅ Deberías ver:
+   - Campo "Ingresa una ubicación"
+   - Botones de sugerencias (Restaurante, Cine, Parque, etc.)
+   - Botón "Continuar" (gris/deshabilitado)
+
+✅ Prueba las sugerencias:
+
+   CASO A: Sugerencia de Restaurante
+   • Haz clic en "🍽️ Restaurante"
+   • RESULTADO: El campo se llena con "Restaurante"
+   • El botón "Continuar" se pone verde y se habilita
+
+   CASO B: Sugerencia de Cine
+   • Haz clic en "🎬 Cine"
+   • RESULTADO: El campo se llena con "Cine"
+
+   CASO C: Ubicación personalizada
+   • Borra el contenido del campo
+   • Escribe "Parque Central"
+   • RESULTADO: El botón "Continuar" permanece habilitado
+
+   CASO D: Campo vacío
+   • Borra el campo completamente
+   • RESULTADO: El botón "Continuar" se vuelve gris y deshabilitado
+
+✅ Prueba navegación:
+   • Haz clic en "Atrás" → vuelve a Agregar Personas
+   • Vuelve a agregar una ubicación
+   • Haz clic en "Continuar"
+
+---
+
+PRUEBA 4: SELECCIONAR HORARIO
+==============================
+
+✅ Deberías ver:
+   - Campo "Hora de inicio" con selector de hora
+   - Campo "Hora de fin" con selector de hora
+   - Botón "Continuar" (gris/deshabilitado)
+
+✅ Prueba los horarios:
+
+   CASO A: Horarios válidos
+   • Selecciona "14:00" como hora de inicio
+   • Selecciona "16:00" como hora de fin
+   • RESULTADO: Botón "Continuar" se habilita (verde)
+   • No hay mensaje de error
+
+   CASO B: Hora de fin menor que inicio
+   • Selecciona "18:00" como hora de inicio
+   • Selecciona "17:00" como hora de fin
+   • RESULTADO: Aparece error rojo "❌ La hora de fin debe ser posterior a la de inicio"
+   • Botón "Continuar" se deshabilita
+
+   CASO C: Horas iguales
+   • Selecciona "15:00" como hora de inicio
+   • Selecciona "15:00" como hora de fin
+   • RESULTADO: Aparece el mensaje de error
+   • Botón "Continuar" deshabilitado
+
+   CASO D: Campo vacío
+   • Borra ambos campos
+   • RESULTADO: Botón "Continuar" deshabilitado
+
+✅ Configura horarios válidos:
+   • Hora de inicio: 19:00
+   • Hora de fin: 21:00
+   • Haz clic "Continuar"
+
+---
+
+PRUEBA 5: RESUMEN
+=================
+
+✅ Deberías ver:
+   - Todas las personas agregadas (en etiquetas)
+   - La ubicación seleccionada
+   - El rango de horario (ej: "19:00 - 21:00")
+   - Botones: "Atrás", "Editar", "Confirmar"
+
+✅ Prueba las funciones:
+
+   CASO A: Botón "Atrás"
+   • Haz clic en "Atrás"
+   • RESULTADO: Vuelves al paso 4 (Horario)
+
+   CASO B: Botón "Editar"
+   • Vuelve a Resumen
+   • Haz clic en "Editar"
+   • RESULTADO: Vuelves al paso 2 (Agregar Personas)
+
+   CASO C: Verifica los datos
+   • Asegúrate de que todo sea correcto:
+      ✓ Personas correctas
+      ✓ Ubicación correcta
+      ✓ Horario correcto
+   • Haz clic "Confirmar"
+
+---
+
+PRUEBA 6: CONFIRMACIÓN EXITOSA
+===============================
+
+✅ Deberías ver:
+   - Icono ✅
+   - Título "Plan creado correctamente"
+   - Resumen final con todas las detalles
+   - Botón "Crear otro encuentro"
+
+✅ Verifica los datos:
+   • Número de personas
+   • Ubicación
+   • Horario
+   • TODO debe coincidir con lo que ingresaste
+
+✅ Prueba el reinicio:
+   • Haz clic en "Crear otro encuentro"
+   • RESULTADO: Vuelves a la pantalla 1 (Bienvenida)
+   • Los campos están limpios y vacíos
+
+---
+
+PRUEBA 7: PERSISTENCIA (DATOS GUARDADOS)
+=========================================
+
+✅ Prueba que los datos se guardan:
+
+   1. Abre la app
+   2. Agrega: personas, ubicación, horarios
+   3. Presiona F5 para recargar la página
+   4. RESULTADO: Si vas al paso donde estabas, los datos están ahí
+
+   NOTA: Los datos se guardan en localStorage del navegador
+
+---
+
+PRUEBA 8: RESPONSIVE (MÓVIL)
+=============================
+
+✅ Verifica que funciona en móvil:
+
+   1. Presiona F12 para abrir DevTools
+   2. Haz clic en el icono de dispositivo móvil (esquina superior izquierda)
+   3. Selecciona un dispositivo móvil (ej: iPhone 12)
+   4. RESULTADO: La app se ve bien y funciona en móvil
+
+---
+
+PRUEBA 9: INTERFAZ Y DISEÑO
+============================
+
+✅ Verifica que todo se vea bonito:
+
+   ✓ Colores agradables (verde principal)
+   ✓ Botones con efectos hover
+   ✓ Transiciones suaves entre pantallas
+   ✓ Textos claros y legibles
+   ✓ Espaciado adecuado
+   ✓ Sin elementos cortados
+   ✓ Sombras suaves en tarjetas
+
+---
+
+PRUEBA 10: MENSAJES DE ERROR
+=============================
+
+✅ Verifica que aparezcan en la esquina superior derecha:
+
+   • Nombres inválidos → Mensaje rojo
+   • Horario inválido → Mensaje rojo
+   • Ubicación vacía → Mensaje rojo (al intentar continuar)
+
+   RESULTADO: Los mensajes desaparecen después de 3 segundos
+
+---
+
+✅ CHECKLIST FINAL
+==================
+
+¿Todo funciona correctamente? Marca lo que verificaste:
+
+   ☐ Pantalla de bienvenida carga
+   ☐ Agregar personas funciona
+   ☐ Validaciones de personas funcionan
+   ☐ Seleccionar ubicación funciona
+   ☐ Sugerencias de ubicación funcionan
+   ☐ Seleccionar horarios funciona
+   ☐ Validación de horarios funciona
+   ☐ Resumen muestra datos correctos
+   ☐ Botones de navegación funcionan
+   ☐ Confirmación exitosa se muestra
+   ☐ Reinicio funciona
+   ☐ Datos se guardan (localStorage)
+   ☐ Diseño se ve moderno
+   ☐ Es responsive en móvil
+   ☐ Mensajes de error funcionan
+
+Si todo está marcado ✅, ¡LA APP FUNCIONA PERFECTAMENTE!
+
+---
+
+🎉 ¡FELICIDADES! Tu MVP está listo para usar.
+

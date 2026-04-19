@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Planificador de Encuentros</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        
+        <!-- PASO 1: PANTALLA DE BIENVENIDA -->
+        <div id="step-1" class="screen active">
+            <div class="screen-content">
+                <div class="welcome-icon">📅</div>
+                <h1>Planifica tu encuentro</h1>
+                <p class="subtitle">Organiza reuniones de forma rápida y sencilla</p>
+                <button class="btn btn-primary" onclick="goToStep(2)">Comenzar</button>
+            </div>
+        </div>
+
+        <!-- PASO 2: AGREGAR PERSONAS -->
+        <div id="step-2" class="screen">
+            <div class="screen-content">
+                <h2>¿A quién quieres invitar?</h2>
+                
+                <div class="input-group">
+                    <input 
+                        type="text" 
+                        id="personInput" 
+                        placeholder="Escribe un nombre"
+                        class="input"
+                        onkeypress="handleEnterPerson(event)"
+                    >
+                    <button class="btn btn-secondary" onclick="addPerson()">Agregar</button>
+                </div>
+
+                <!-- Lista de personas -->
+                <div id="personsList" class="persons-list">
+                    <!-- Se llena dinámicamente -->
+                </div>
+
+                <!-- Botón WhatsApp -->
+                <button class="btn btn-outline" onclick="openWhatsApp()">
+                    📱 Agregar desde WhatsApp
+                </button>
+
+                <!-- Botones de navegación -->
+                <div class="button-group">
+                    <button class="btn btn-secondary" onclick="goToStep(1)">Atrás</button>
+                    <button id="btn-continue-step2" class="btn btn-primary" onclick="goToStep(3)" disabled>
+                        Continuar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- PASO 3: SELECCIÓN DE UBICACIÓN -->
+        <div id="step-3" class="screen">
+            <div class="screen-content">
+                <h2>¿A dónde quieres ir?</h2>
+                
+                <div class="input-group">
+                    <input 
+                        type="text" 
+                        id="locationInput" 
+                        placeholder="Ingresa una ubicación"
+                        class="input"
+                        onkeyup="updateLocationButton()"
+                    >
+                </div>
+
+                <!-- Sugerencias -->
+                <div class="suggestions">
+                    <p class="suggestions-label">Sugerencias:</p>
+                    <div class="suggestions-list">
+                        <button class="btn-suggestion" onclick="selectLocation('Restaurante')">🍽️ Restaurante</button>
+                        <button class="btn-suggestion" onclick="selectLocation('Cine')">🎬 Cine</button>
+                        <button class="btn-suggestion" onclick="selectLocation('Parque')">🌳 Parque</button>
+                        <button class="btn-suggestion" onclick="selectLocation('Café')">☕ Café</button>
+                        <button class="btn-suggestion" onclick="selectLocation('Playa')">🏖️ Playa</button>
+                        <button class="btn-suggestion" onclick="selectLocation('Museo')">🏛️ Museo</button>
+                    </div>
+                </div>
+
+                <!-- Botones de navegación -->
+                <div class="button-group">
+                    <button class="btn btn-secondary" onclick="goToStep(2)">Atrás</button>
+                    <button id="btn-continue-step3" class="btn btn-primary" onclick="goToStep(4)" disabled>
+                        Continuar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- PASO 4: SELECCIÓN DE HORARIO -->
+        <div id="step-4" class="screen">
+            <div class="screen-content">
+                <h2>¿Cuándo?</h2>
+                
+                <div class="time-inputs">
+                    <div class="time-group">
+                        <label for="startTime">Hora de inicio:</label>
+                        <input 
+                            type="time" 
+                            id="startTime" 
+                            class="input"
+                            onchange="validateTime()"
+                        >
+                    </div>
+                    <div class="time-group">
+                        <label for="endTime">Hora de fin:</label>
+                        <input 
+                            type="time" 
+                            id="endTime" 
+                            class="input"
+                            onchange="validateTime()"
+                        >
+                    </div>
+                </div>
+
+                <!-- Mensaje de error -->
+                <div id="timeError" class="error-message"></div>
+
+                <!-- Botones de navegación -->
+                <div class="button-group">
+                    <button class="btn btn-secondary" onclick="goToStep(3)">Atrás</button>
+                    <button id="btn-continue-step4" class="btn btn-primary" onclick="goToStep(5)" disabled>
+                        Continuar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- PASO 5: RESUMEN -->
+        <div id="step-5" class="screen">
+            <div class="screen-content">
+                <h2>Resumen</h2>
+                
+                <div class="summary-card">
+                    <div class="summary-section">
+                        <h3>👥 Personas invitadas</h3>
+                        <div id="summaryPersons" class="summary-list">
+                            <!-- Se llena dinámicamente -->
+                        </div>
+                    </div>
+
+                    <div class="summary-section">
+                        <h3>📍 Ubicación</h3>
+                        <p id="summaryLocation" class="summary-value"></p>
+                    </div>
+
+                    <div class="summary-section">
+                        <h3>🕐 Horario</h3>
+                        <p id="summaryTime" class="summary-value"></p>
+                    </div>
+                </div>
+
+                <!-- Botones de navegación -->
+                <div class="button-group">
+                    <button class="btn btn-secondary" onclick="goToStep(4)">Atrás</button>
+                    <button class="btn btn-outline" onclick="goToStep(2)">Editar</button>
+                    <button class="btn btn-primary" onclick="confirmPlan()">Confirmar</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- PASO 6: CONFIRMACIÓN -->
+        <div id="step-6" class="screen">
+            <div class="screen-content">
+                <div class="success-icon">✅</div>
+                <h1>Plan creado correctamente</h1>
+                <p class="subtitle">Tu encuentro ha sido programado exitosamente</p>
+                
+                <div class="final-summary">
+                    <p><strong>Personas:</strong> <span id="finalPersonsCount"></span></p>
+                    <p><strong>Ubicación:</strong> <span id="finalLocation"></span></p>
+                    <p><strong>Horario:</strong> <span id="finalTime"></span></p>
+                </div>
+
+                <button class="btn btn-primary" onclick="restart()">Crear otro encuentro</button>
+            </div>
+        </div>
+
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

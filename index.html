@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>POOL</title>
+    <meta name="description" content="App para coordinar transporte de niños entre padres">
+    <meta name="theme-color" content="#FF6B35">
+    
+    <!-- 
+    ========================================
+    POOL - App de Transporte de Niños
+    ========================================
+    
+    Tecnología: HTML + CSS + JavaScript puro
+    Almacenamiento: localStorage (sin backend)
+    Hosting: GitHub Pages (gratis, sin costo)
+    
+    Para desplegar en GitHub Pages:
+    1. Crear repositorio público en GitHub
+    2. Subir estos archivos: index.html, styles.css, script.js
+    3. Settings → Pages → Source: main branch
+    4. Acceder desde: https://tu_usuario.github.io/pool/
+    
+    Ver DEPLOY_GITHUB_PAGES.md para instrucciones completas.
+    
+    LIMITACIÓN IMPORTANTE:
+    - No hay backend, por lo que NO sincroniza entre dispositivos
+    - Cada usuario tiene su propio localStorage
+    - Para compartir invitaciones, se incluye data en URL (?pool=...)
+    
+    ========================================
+    -->
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- ========================================
+         FIREBASE SDK (v12)
+         Proporciona: Firestore + Authentication
+         ======================================== -->
+    <script src="https://www.gstatic.com/firebasejs/12.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/12.12.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore-compat.js"></script>
+    
+</head>
+<body>
+    <div class="container">
+        
+        <!-- INDICADOR DE PROGRESO -->
+        <!-- 
+        <div id="progressIndicator" class="progress-indicator" style="display: none;">
+            <span id="progressText">Paso 1 de 9</span>
+            <div class="progress-bar">
+                <div id="progressFill" class="progress-fill"></div>
+            </div>
+        </div>
+        -->
+        
+        <!-- PASO 0: CREAR PERFIL DE USUARIO (PRIMERA VEZ) -->
+        <div id="step-0" class="screen">
+            <div class="screen-content">
+                <div class="welcome-icon" style="font-size: 64px; margin-bottom: 20px;">👤</div>
+                <h1>Bienvenido a POOL</h1>
+                <p class="subtitle">Primero, cuéntanos quién eres</p>
+                
+                <!-- Botón de Google Sign-In (FIREBASE) -->
+                <button id="googleSignInBtn" class="btn btn-primary" onclick="signInWithGoogle()" style="width: 100%; margin-bottom: 20px; background: linear-gradient(135deg, #4285f4 0%, #3367d6 100%);">
+                    🔐 Iniciar sesión con Google
+                </button>
+                
+                <p style="text-align: center; font-size: 12px; color: #999; margin-bottom: 20px;">
+                    o completa tu perfil manualmente
+                </p>
+                
+                <div class="user-creation-form" style="margin-top: 40px;">
+                    <!-- Foto de perfil -->
+                    <div class="profile-photo-upload" style="margin-bottom: 30px; text-align: center;">
+                        <div id="profilePhotoPreview" class="profile-photo-preview" style="width: 100px; height: 100px; border-radius: 50%; background-color: #E8E8E8; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center; font-size: 48px; cursor: pointer; border: 2px dashed #FF6B35;">
+                            📸
+                        </div>
+                        <input type="file" id="photoInput" accept="image/*" style="display: none;">
+                        <p style="font-size: 12px; color: #999; margin-top: 8px;">Haz click para agregar foto (opcional)</p>
+                    </div>
+
+                    <!-- Nombre -->
+                    <div class="input-group-vertical" style="margin-bottom: 20px;">
+                        <label for="userNameInput">📝 Tu nombre:</label>
+                        <input 
+                            type="text" 
+                            id="userNameInput" 
+                            placeholder="Ej: Juan Pérez"
+                            class="input"
+                            onkeypress="handleEnterUserCreation(event)"
+                        >
+                    </div>
+
+                    <!-- Teléfono -->
+                    <div class="input-group-vertical" style="margin-bottom: 30px;">
+                        <label for="userPhoneInput">📱 Tu número de teléfono:</label>
+                        <input 
+                            type="tel" 
+                            id="userPhoneInput" 
+                            placeholder="Ej: 351 1234567"
+                            class="input"
+                            onkeypress="handleEnterUserCreation(event)"
+                        >
+                    </div>
+
+                    <!-- Mensaje de error -->
+                    <div id="userCreationError" class="error-message" style="margin-bottom: 20px; display: none;"></div>
+
+                    <!-- Botón continuar -->
+                    <button class="btn btn-primary" onclick="createUserProfile()" style="width: 100%;">Continuar</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- PASO 1: BIENVENIDA -->
+        <div id="step-1" class="screen active">
+            <div class="screen-content">
+                <!-- Perfil del usuario -->
+                <div class="user-profile-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #E8E8E8;">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <div id="headerProfilePhoto" class="profile-photo-small" style="width: 48px; height: 48px; border-radius: 50%; background-color: #E8E8E8; display: flex; align-items: center; justify-content: center; font-size: 24px; cursor: pointer;">📸</div>
+                        <div>
+                            <p style="font-weight: 600; font-size: 14px;" id="headerUserName">Usuario</p>
+                            <p style="font-size: 12px; color: #999;" id="headerUserPhone">-</p>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn btn-outline" onclick="editUserProfile()" style="font-size: 12px; padding: 6px 12px;">⚙️ Editar</button>
+                        <button id="logoutBtn" class="btn btn-outline" onclick="signOut()" style="font-size: 12px; padding: 6px 12px; display: none;">🚪 Salir</button>
+                    </div>
+                </div>
+
+                <div class="welcome-icon">🚌</div>
+                <h1>POOL</h1>
+                <p class="subtitle">Coordina quién lleva y quién trae a los niños</p>
+                
+                <div class="button-group-vertical">
+                    <button class="btn btn-primary" onclick="goToStep(2)">➕ Crear nuevo pool</button>
+                    <button class="btn btn-secondary" onclick="goToStep(9)">📅 Ver mis pools</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- PASO 2: AGREGAR NIÑOS -->
+        <div id="step-2" class="screen">
+            <div class="screen-content">
+                <h2>¿Qué niños participan?</h2>
+                <p class="subtitle-small">Máximo 4 niños</p>
+                
+                <div class="input-group">
+                    <input 
+                        type="text" 
+                        id="childInput" 
+                        placeholder="Nombre del niño"
+                        class="input"
+                        onkeypress="handleEnterChild(event)"
+                    >
+                    <button class="btn btn-secondary" onclick="addChild()">Agregar</button>
+                </div>
+
+                <!-- Lista de niños -->
+                <div id="childrenList" class="items-list">
+                    <!-- Se llena dinámicamente -->
+                </div>
+
+                <!-- Botones de navegación -->
+                <div class="button-group">
+                    <button class="btn btn-secondary" onclick="goToStep(1)">Atrás</button>
+                    <button id="btn-continue-step2" class="btn btn-primary" onclick="goToStep(3)">
+                        Continuar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- PASO 3: AGREGAR PADRES -->
+        <div id="step-3" class="screen">
+            <div class="screen-content">
+                <h2>¿Qué padres participan?</h2>
+                <p class="subtitle-small">Mínimo 1 padre</p>
+                
+                <div class="input-group">
+                    <input 
+                        type="text" 
+                        id="parentInput" 
+                        placeholder="Nombre del padre/madre"
+                        class="input"
+                        onkeypress="handleEnterParent(event)"
+                    >
+                    <button class="btn btn-secondary" onclick="addParent()">Agregar</button>
+                </div>
+
+                <!-- Lista de padres -->
+                <div id="parentsList" class="items-list">
+                    <!-- Se llena dinámicamente -->
+                </div>
+
+                <!-- Botones de navegación -->
+                <div class="button-group">
+                    <button class="btn btn-secondary" onclick="goToStep(2)">Atrás</button>
+                    <button id="btn-continue-step3" class="btn btn-primary" onclick="goToStep(4)">
+                        Continuar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- PASO 4: ASIGNACIÓN DE ROLES -->
+        <div id="step-4" class="screen">
+            <div class="screen-content">
+                <h2>¿Quién lleva y quién trae?</h2>
+                
+                <div class="role-assignment">
+                    <div class="role-group">
+                        <label for="driverSelect">👉 Padre que LLEVA (ida):</label>
+                        <select id="driverSelect" class="input" onchange="updateRoleButtons()">
+                            <option value="">Selecciona un padre</option>
+                        </select>
+                    </div>
+
+                    <div class="role-group">
+                        <label for="returnSelect">👈 Padre que TRAE (vuelta):</label>
+                        <select id="returnSelect" class="input" onchange="updateRoleButtons()">
+                            <option value="">Selecciona un padre</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Mensaje de error para roles -->
+                <div id="roleError" class="error-message"></div>
+
+                <!-- Botones de navegación -->
+                <div class="button-group">
+                    <button class="btn btn-secondary" onclick="goToStep(3)">Atrás</button>
+                    <button id="btn-continue-step4" class="btn btn-primary" onclick="goToStep(5)">
+                        Continuar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- PASO 5: UBICACIÓN -->
+        <div id="step-5" class="screen">
+            <div class="screen-content">
+                <h2>¿A dónde van los niños?</h2>
+                
+                <div class="input-group">
+                    <input 
+                        type="text" 
+                        id="locationInput" 
+                        placeholder="Escuela, club, actividad..."
+                        class="input"
+                        onkeyup="updateLocationButton()"
+                    >
+                </div>
+
+                <!-- Sugerencias -->
+                <div class="suggestions">
+                    <p class="suggestions-label">Sugerencias:</p>
+                    <div class="suggestions-list">
+                        <button class="btn-suggestion" onclick="selectLocation('Escuela')">🎓 Escuela</button>
+                        <button class="btn-suggestion" onclick="selectLocation('Club')">⚽ Club</button>
+                        <button class="btn-suggestion" onclick="selectLocation('Academia')">📚 Academia</button>
+                        <button class="btn-suggestion" onclick="selectLocation('Entrenamiento')">🏃 Entrenamiento</button>
+                        <button class="btn-suggestion" onclick="selectLocation('Actividad')">🎨 Actividad</button>
+                    </div>
+                </div>
+
+                <!-- Botones de navegación -->
+                <div class="button-group">
+                    <button class="btn btn-secondary" onclick="goToStep(4)">Atrás</button>
+                    <button id="btn-continue-step5" class="btn btn-primary" onclick="goToStep(6)">
+                        Continuar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- PASO 6: FECHA Y HORARIOS -->
+        <div id="step-6" class="screen">
+            <div class="screen-content">
+                <h2>¿Cuándo?</h2>
+                
+                <div class="date-time-inputs">
+                    <div class="input-group-vertical">
+                        <label for="dateInput">📅 Fecha:</label>
+                        <input 
+                            type="date" 
+                            id="dateInput" 
+                            class="input"
+                            onchange="validateDateTime()"
+                        >
+                    </div>
+
+                    <div class="input-group-vertical">
+                        <label for="startTime">🚗 Hora de ida:</label>
+                        <input 
+                            type="time" 
+                            id="startTime" 
+                            class="input"
+                            onchange="validateDateTime()"
+                        >
+                    </div>
+
+                    <div class="input-group-vertical">
+                        <label for="endTime">🔙 Hora de vuelta:</label>
+                        <input 
+                            type="time" 
+                            id="endTime" 
+                            class="input"
+                            onchange="validateDateTime()"
+                        >
+                    </div>
+                </div>
+
+                <!-- Mensaje de error -->
+                <div id="dateTimeError" class="error-message"></div>
+
+                <!-- Botones de navegación -->
+                <div class="button-group">
+                    <button class="btn btn-secondary" onclick="goToStep(5)">Atrás</button>
+                    <button id="btn-continue-step6" class="btn btn-primary" onclick="goToStep(7)">
+                        Continuar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- PASO 7: RESUMEN -->
+        <div id="step-7" class="screen">
+            <div class="screen-content">
+                <h2>Resumen del Pool</h2>
+                
+                <div class="summary-card">
+                    <div class="summary-section">
+                        <h3>👨‍👧‍👦 Niños</h3>
+                        <div id="summaryChildren" class="summary-list"></div>
+                    </div>
+
+                    <div class="summary-section">
+                        <h3>👥 Padres</h3>
+                        <div id="summaryParents" class="summary-list"></div>
+                    </div>
+
+                    <div class="summary-section">
+                        <h3>🚗 Roles</h3>
+                        <p id="summaryRoles" class="summary-value"></p>
+                    </div>
+
+                    <div class="summary-section">
+                        <h3>📍 Destino</h3>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <p id="summaryLocation" class="summary-value"></p>
+                            <button class="btn btn-outline" onclick="openGoogleMaps(appState.location)" style="font-size: 12px; padding: 6px 12px; margin-left: 10px;">🗺️</button>
+                        </div>
+                        <div id="summaryMapEmbed" style="margin-top: 12px;"></div>
+                    </div>
+
+                    <div class="summary-section">
+                        <h3>📅 Fecha y Hora</h3>
+                        <p id="summaryDateTime" class="summary-value"></p>
+                    </div>
+                </div>
+
+                <!-- Botones de navegación -->
+                <div class="button-group">
+                    <button class="btn btn-secondary" onclick="goToStep(6)">Atrás</button>
+                    <button class="btn btn-outline" onclick="goToStep(2)">Editar</button>
+                    <button class="btn btn-primary" onclick="confirmPool()">Confirmar</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- PASO 8: CONFIRMACIÓN -->
+        <div id="step-8" class="screen">
+            <div class="screen-content">
+                <div class="success-icon">✅</div>
+                <h1>Pool creado correctamente</h1>
+                <p class="subtitle">El evento ha sido guardado</p>
+                
+                <div class="final-summary">
+                    <p><strong>Niños:</strong> <span id="finalChildrenCount"></span></p>
+                    <p><strong>Padres:</strong> <span id="finalParentsCount"></span></p>
+                    <p><strong>Lleva:</strong> <span id="finalDriver"></span></p>
+                    <p><strong>Trae:</strong> <span id="finalReturn"></span></p>
+                    <p><strong>Destino:</strong> <span id="finalLocation"></span></p>
+                    <p><strong>Fecha:</strong> <span id="finalDate"></span></p>
+                </div>
+
+                <div class="button-group-vertical">
+                    <button class="btn btn-primary" onclick="goToStep(9)">Ver todos mis pools</button>
+                    <button class="btn btn-secondary" onclick="sharePoolWhatsApp()">📱 Invitar por WhatsApp</button>
+                    <button class="btn btn-outline" onclick="restart()">Crear otro pool</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- PASO 9: MIS POOLS (EVENTOS GUARDADOS) -->
+        <div id="step-9" class="screen">
+            <div class="screen-content">
+                <h2>📅 Mis Pools</h2>
+                
+                <div id="poolsList" class="pools-container">
+                    <!-- Se llena dinámicamente con eventos guardados -->
+                </div>
+
+                <!-- Mensaje si no hay pools -->
+                <div id="noPoolsMessage" class="no-events-message" style="display: none;">
+                    <p>No hay pools guardados aún</p>
+                    <p style="font-size: 12px; color: #999; margin-top: 10px;">Crea uno para comenzar</p>
+                </div>
+
+                <!-- Botones -->
+                <div class="button-group">
+                    <button class="btn btn-secondary" onclick="restart()">Crear nuevo pool</button>
+                    <button class="btn btn-outline" onclick="goToStep(1)">Volver al inicio</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- PASO 10: PANTALLA DE INVITACIÓN (ACCESO POR LINK) -->
+        <div id="step-10" class="screen">
+            <div class="screen-content">
+                <div class="welcome-icon">🎫</div>
+                <h2 style="margin-bottom: 20px;">Invitación a Pool</h2>
+                
+                <div id="invitationIntroMessage" style="background: linear-gradient(135deg, #FF6B35 0%, #D85030 100%); color: white; padding: 20px; border-radius: 12px; text-align: center; margin-bottom: 20px;">
+                    <p style="font-size: 16px; font-weight: 600;">Has recibido una invitación para coordinar un pool de transporte</p>
+                    <p style="font-size: 13px; margin-top: 8px; opacity: 0.9;">Invitado por: <strong id="invCreatedBy">-</strong></p>
+                </div>
+                
+                <div id="invitationDetails" class="summary-card">
+                    <div class="summary-section">
+                        <h3>📍 Destino</h3>
+                        <p id="invLocation" class="summary-value" style="font-size: 18px; font-weight: 600; color: #FF6B35;"></p>
+                    </div>
+
+                    <div class="summary-section">
+                        <h3>📅 Fecha y Horario</h3>
+                        <p id="invDateTime" class="summary-value" style="font-size: 16px;"></p>
+                    </div>
+
+                    <div class="summary-section">
+                        <h3>👦 Niños</h3>
+                        <p id="invChildren" class="summary-value"></p>
+                    </div>
+
+                    <div class="summary-section">
+                        <h3>🚗 Roles Asignados</h3>
+                        <p id="invDrivers" class="summary-value"></p>
+                    </div>
+                </div>
+
+                <p class="subtitle" style="margin-top: 20px; font-size: 16px; font-weight: 600;">¿Quieres unirte a este pool?</p>
+
+                <div class="button-group-vertical">
+                    <button class="btn btn-primary" onclick="acceptPoolInvitation()">✅ Aceptar invitación</button>
+                    <button class="btn btn-secondary" onclick="rejectPoolInvitation()">❌ Rechazar</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- PASO 11: DETALLE DEL POOL (NUEVO) -->
+        <div id="step-11" class="screen">
+            <div class="screen-content">
+                <h2 style="margin-bottom: 10px;">📋 Detalles del Pool</h2>
+                
+                <!-- Estado del Pool -->
+                <div id="poolDetailStatus" class="pool-status-banner" style="padding: 12px 20px; border-radius: 8px; text-align: center; margin-bottom: 20px; font-weight: 600;">
+                    <!-- Se填充 dinámicamente -->
+                </div>
+
+                <!-- Información del Pool -->
+                <div id="poolDetailCard" class="summary-card">
+                    <div class="summary-section">
+                        <h3>📍 Destino</h3>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <p id="detailLocation" class="summary-value" style="font-size: 18px; font-weight: 600; color: #FF6B35;"></p>
+                            <button id="detailMapBtn" class="btn btn-outline" onclick="openGoogleMaps(document.getElementById('detailLocation').textContent)" style="font-size: 12px; padding: 6px 10px;">🗺️</button>
+                        </div>
+                    </div>
+
+                    <div class="summary-section">
+                        <h3>📅 Fecha</h3>
+                        <p id="detailDate" class="summary-value"></p>
+                    </div>
+
+                    <div class="summary-section">
+                        <h3>🕐 Horarios</h3>
+                        <p id="detailTimes" class="summary-value"></p>
+                    </div>
+
+                    <div class="summary-section">
+                        <h3>👦 Niños</h3>
+                        <div id="detailChildren" class="summary-list"></div>
+                    </div>
+
+                    <div class="summary-section">
+                        <h3>👥 Padres</h3>
+                        <div id="detailParents" class="summary-list"></div>
+                    </div>
+
+                    <div class="summary-section">
+                        <h3>🚗 Roles</h3>
+                        <p id="detailRoles" class="summary-value"></p>
+                    </div>
+                </div>
+
+                <!-- Lista de Participantes -->
+                <div id="detailParticipantsSection" style="margin-top: 20px;">
+                    <h3 style="font-size: 16px; margin-bottom: 12px;">👥 Participantes</h3>
+                    <div id="detailParticipantsList" class="pools-container">
+                        <!-- Se填充 dinámicamente -->
+                    </div>
+                </div>
+
+                <!-- Tu rol en el pool -->
+                <div id="detailYourRole" style="margin-top: 20px; padding: 16px; background: linear-gradient(135deg, #E8F5E9 0%, #C8E6C9 100%); border-radius: 12px; border-left: 4px solid #4CAF50;">
+                    <p style="font-weight: 600; color: #2E7D32; margin: 0;">👤 Tu participación: <span id="detailCurrentUserRole"></span></p>
+                </div>
+
+                <!-- Botón Ver en Google Maps -->
+                <button class="btn btn-primary" onclick="openGoogleMaps(document.getElementById('detailLocation').textContent)" style="width: 100%; margin-top: 20px;">
+                    🗺️ Ver en Google Maps
+                </button>
+
+                <!-- Mapa embebido -->
+                <div id="detailMapEmbed" style="margin-top: 16px;"></div>
+
+                <!-- Botones de acción (Unirse/Salir/Confirmar) -->
+                <div id="detailActionButtons" class="button-group" style="margin-top: 20px;"></div>
+
+                <!-- Botones de navegación -->
+                <div class="button-group" style="margin-top: 20px;">
+                    <button class="btn btn-secondary" onclick="goToStep(9)">📅 Mis Pools</button>
+                    <button class="btn btn-outline" onclick="goToStep(1)">🏠 Inicio</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ========================================
+         SCRIPTS - ORDEN IMPORTANTE
+         ======================================== -->
+    
+    <!-- DEBUG: Verificar carga de scripts -->
+    <script>console.log('DEBUG: Antes de cargar scripts');</script>
+    
+    <!-- 1. Configuración de Firebase -->
+    <script src="firebase-config.js"></script>
+    
+    <!-- 2. Abstracción de Firestore (wrapper) -->
+    <script src="firestore-wrapper.js"></script>
+    
+    <!-- 3. Autenticación y Google Sign-In -->
+    <script src="firebase-auth-ui.js"></script>
+    
+    <!-- 4. Lógica principal de la app -->
+    <script src="script.js"></script>
+    
+    <script>console.log('DEBUG: Scripts cargados, goToStep existe:', typeof goToStep);</script>
+    
+    <!-- 5. Inicialización -->
+    <script>
+        // Esperar a que DOM esté listo
+        document.addEventListener('DOMContentLoaded', async function() {
+            console.log('🚀 POOL iniciando...');
+            
+            try {
+                // 1. Inicializar Firebase
+                initializeFirebase();
+                console.log('DEBUG: Firebase inicializado');
+                
+                // 2. Inicializar autenticación
+                initializeAuth();
+                console.log('DEBUG: Auth inicializado');
+                
+// 3. Cargar datos locales (localStorage)
+                loadUserProfile();
+                loadState();
+                await loadPoolsEvents();
+                console.log('DEBUG: Datos cargados');
+
+// 3.5 Suscribirse a cambios en tiempo real (si Firebase disponible)
+                if (typeof subscribeToAllPools === 'function') {
+                    window.poolsUnsubscribe = subscribeToAllPools((pools) => {
+                        console.log('📡 Listener recibido:', pools.length, 'pools');
+                        //Combinar pools del listener con los existentes (no sobrescribir)
+                        pools.forEach(p => {
+                            const exists = poolsEvents.find(e => e.id === p.id);
+                            if (!exists) {
+                                poolsEvents.push(p);
+                                console.log('➕ Agregado pool:', p.id);
+                            }
+                        });
+                        //Guardar en localStorage
+                        localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(poolsEvents));
+                        if (getCurrentStep() === 9) updatePoolsList();
+                    });
+                    console.log('📡 Sincronización en tiempo real activa');
+                }
+                        });
+                        if (getCurrentStep() === 9) updatePoolsList();
+                    });
+                    console.log('📡 Sincronización en tiempo real activa');
+                }
+
+                // 4. Revisar si hay un pool compartido por link
+                await checkForSharedPool();
+                console.log('DEBUG: Pool revisado');
+                
+                // 5. Agregar event listeners de fotos
+                const photoInput = document.getElementById('photoInput');
+                if (photoInput) {
+                    photoInput.addEventListener('change', handlePhotoSelect);
+                }
+                
+                // 6. Mostrar Step-0 si es primera vez, sino Step-1
+                console.log('DEBUG: currentUser.nombre =', currentUser.nombre);
+                if (!currentUser.nombre) {
+                    goToStep(0);
+                } else {
+                    goToStep(1);
+                }
+                
+                console.log('✅ POOL listo');
+            } catch(e) {
+                console.error('ERROR en init:', e);
+            }
+        });
+    </script>
+</body>
+</html>
