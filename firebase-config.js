@@ -19,12 +19,12 @@
  */
 
 const FIREBASE_CONFIG = {
-    apiKey: "AIzaSyDxxxxxxxxxxxxxxxxxxxxxxxxxx", // Tu API Key
-    authDomain: "pool-app-xxxxxx.firebaseapp.com",
-    projectId: "pool-app-xxxxxx",
-    storageBucket: "pool-app-xxxxxx.appspot.com",
-    messagingSenderId: "123456789012",
-    appId: "1:123456789012:web:abcdef1234567890abcdef"
+    apiKey: "AIzaSyA2veaCsBBMxFozXw4iyWDFhU0L_phFoNo",
+    authDomain: "pool-909a8.firebaseapp.com",
+    projectId: "pool-909a8",
+    storageBucket: "pool-909a8.appspot.com",
+    messagingSenderId: "235736364004",
+    appId: "1:235736364004:web:24d4f21dc3089789324df1"
 };
 
 /**
@@ -38,7 +38,7 @@ let FIREBASE_ENABLED = false;
  */
 function isFirebaseConfigured() {
     return FIREBASE_CONFIG.apiKey && 
-           FIREBASE_CONFIG.apiKey !== 'AIzaSyDxxxxxxxxxxxxxxxxxxxxxxxxxx' &&
+           FIREBASE_CONFIG.apiKey !== 'TU_API_KEY_AQUI' &&
            FIREBASE_CONFIG.projectId && 
            FIREBASE_CONFIG.projectId !== 'pool-app-xxxxxx';
 }
@@ -79,7 +79,7 @@ function initializeFirebase() {
  */
 function checkFirebaseConfig() {
     const hasAllKeys = 
-        FIREBASE_CONFIG.apiKey !== 'AIzaSyDxxxxxxxxxxxxxxxxxxxxxxxxxx' &&
+        FIREBASE_CONFIG.apiKey !== 'TU_API_KEY_AQUI' &&
         FIREBASE_CONFIG.projectId !== 'pool-app-xxxxxx';
     
     if (!hasAllKeys) {

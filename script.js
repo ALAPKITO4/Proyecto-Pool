@@ -102,6 +102,9 @@ let poolsEvents = [];
 // Array para almacenar invitados simulados
 let currentPoolInvitations = [];
 
+// Listener para sincronización en tiempo real
+let unsubscribeAllPools = null;
+
 // Constantes
 const STORAGE_KEY_STATE = 'pool_app_state';
 const STORAGE_KEY_EVENTS = 'pool_events';
@@ -445,6 +448,13 @@ function handleEnterUserCreation(event) {
 function goToStep(stepNumber) {
     const current = getCurrentStep();
     
+    // Limpiar listener de tiempo real al salir del paso 9
+    if (current === 9 && stepNumber !== 9 && typeof unsubscribeAllPools === 'function') {
+        console.log('🧹 Limpiando listener de tiempo real...');
+        unsubscribeAllPools();
+        unsubscribeAllPools = null;
+    }
+    
     // Permitir navegación directa a pasos especiales sin validación
     // Step 0: crear usuario, Step 10: invitación, Step 11: detalles
     if (stepNumber === 0 || stepNumber === 10 || stepNumber === 11) {
@@ -558,7 +568,7 @@ function updateChildrenList() {
         tag.className = 'item-tag';
         tag.innerHTML = `
             👦 ${child}
-            <button class="remove-btn" onclick="removeChild(${index})">✕</button>
+            <button type="button" class="remove-btn" onclick="removeChild(${index})">✕</button>
         `;
         childrenList.appendChild(tag);
     });
@@ -648,7 +658,7 @@ function updateParentsList() {
         tag.className = 'item-tag';
         tag.innerHTML = `
             👤 ${parent}${userTag}
-            <button class="remove-btn" onclick="removeParent(${index})">✕</button>
+            <button type="button" class="remove-btn" onclick="removeParent(${index})">✕</button>
         `;
         parentsList.appendChild(tag);
     });
@@ -1158,11 +1168,12 @@ async function updatePoolsList() {
             const endTime = formatTime(event.endTime);
             const formattedDate = formatDate(event.date);
             
-            // Generar lista de invitados con estados mejorados
+            // Generar lista de participantes con estados
             let invitedsList = '';
-            if (event.invitados && event.invitados.length > 0) {
+            const participantes = event.participantes || event.invitados || [];
+            if (participantes && participantes.length > 0) {
                 invitedsList = '<div class="pool-invitations-list">';
-                event.invitados.forEach(inv => {
+                participantes.forEach(inv => {
                     const isCurrentUser = isNameMatch(inv.nombre, currentUser.nombre);
                     const userTag = isCurrentUser ? '<span class="user-tag">(Tú)</span>' : '';
                     const statusClass = `status-${inv.estado}`;
@@ -2444,6 +2455,18 @@ function updateUI() {
 
         case 9:
             updatePoolsList().catch(error => console.error('Error cargando pools:', error));
+            // Iniciar listener de tiempo real
+            if (typeof unsubscribeAllPools === 'function') {
+                unsubscribeAllPools();
+            }
+            if (FIREBASE_ENABLED && window.db) {
+                unsubscribeAllPools = subscribeToAllPools((updatedPools) => {
+                    console.log('🔄 更新: pools cambiados en tiempo real', updatedPools.length);
+                    poolsEvents = updatedPools;
+                    updatePoolsList();
+                });
+                console.log('👂 Listener de tiempo real activado para Mis Pools');
+            }
             break;
 
         case 11:

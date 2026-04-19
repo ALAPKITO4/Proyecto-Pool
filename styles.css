@@ -313,6 +313,8 @@ h3 {
     transition: var(--transition);
     display: flex;
     align-items: center;
+    z-index: 100;
+    position: relative;
 }
 
 .item-tag .remove-btn:hover {
