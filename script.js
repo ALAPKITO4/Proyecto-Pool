@@ -105,6 +105,9 @@ let currentPoolInvitations = [];
 // Listener para sincronización en tiempo real
 let unsubscribeAllPools = null;
 
+// Listener global (siempre activo)
+let globalPoolListener = null;
+
 // Constantes
 const STORAGE_KEY_STATE = 'pool_app_state';
 const STORAGE_KEY_EVENTS = 'pool_events';
@@ -2643,6 +2646,12 @@ async function initApp() {
     // Cargar estado guardado
     loadState();
     loadPoolsEvents();
+    
+    // CRÍTICO: Cargar pools aceptadas por el usuario
+    await loadUserAcceptedPools();
+
+    // INICIAR LISTENER GLOBAL para tiempo real
+    startGlobalPoolListener();
 
     // Configurar handlers globales
     setupEventListeners();
@@ -2798,4 +2807,42 @@ async function loadUserAcceptedPools() {
             console.warn('   ⚠️ Error cargando desde Firestore:', err);
         }
     }
+}
+
+/**
+ * Inicia listener global de pools (siempre activo)
+ * Esto permite ver cambios en tiempo real desde cualquier pantalla
+ */
+function startGlobalPoolListener() {
+    if (!FIREBASE_ENABLED || !window.db) {
+        console.log('⚠️ Firebase no disponible para listener global');
+        return;
+    }
+    
+    console.log('🌐 Iniciando listener GLOBAL de pools...');
+    
+    globalPoolListener = subscribeToAllPools((updatedPools) => {
+        console.log('🔄 [GLOBAL] Cambios detectados en Firestore:', updatedPools.length);
+        
+        // Actualizar poolsEvents con los datos más recientes
+        updatedPools.forEach(pool => {
+            const index = poolsEvents.findIndex(e => e.id === pool.id);
+            if (index >= 0) {
+                poolsEvents[index] = pool;
+            } else {
+                poolsEvents.push(pool);
+            }
+        });
+        
+        // Guardar en localStorage
+        localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(poolsEvents));
+        
+        // Actualizar UI si es necesario
+        const currentStep = getCurrentStep();
+        if (currentStep === 9) {
+            updatePoolsList();
+        }
+    });
+    
+    console.log('✅ Listener GLOBAL activado');
 }
