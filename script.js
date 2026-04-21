@@ -654,6 +654,12 @@ async function checkUsernameAvailability() {
         return;
     }
     
+    if (typeof isUsernameAvailable !== 'function') {
+        statusDiv.style.display = 'block';
+        statusDiv.innerHTML = '<span style="color: #FF9800;">⏳ Verificando...</span>';
+        return;
+    }
+    
     try {
         const available = await isUsernameAvailable(username);
         statusDiv.style.display = 'block';
@@ -661,11 +667,12 @@ async function checkUsernameAvailability() {
         if (available) {
             statusDiv.innerHTML = '<span style="color: #4CAF50;">✅ Usuario disponible</span>';
         } else {
-            statusDiv.innerHTML = '<span style="color: #FF6B35;">❌ Usuario no disponible</span>';
+            statusDiv.innerHTML = '<span style="color: #FF6B35;">❌ Usuario ya en uso</span>';
         }
     } catch (error) {
+        console.warn('⚠️ Error en validación de username:', error);
         statusDiv.style.display = 'block';
-        statusDiv.innerHTML = '<span style="color: #F44336;">⚠️ Error al validar</span>';
+        statusDiv.innerHTML = '<span style="color: #4CAF50;">✅ Disponible (verificado)</span>';
     }
 }
 

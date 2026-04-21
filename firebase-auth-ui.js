@@ -169,8 +169,9 @@ function syncCurrentUserWithAuth() {
  */
 async function isUsernameAvailable(username) {
     try {
-        if (!FIREBASE_ENABLED || !window.db) {
-            console.warn('⚠️ Firestore no disponible');
+        // Verificar que Firestore esté disponible
+        if (!FIREBASE_ENABLED || !window.db || typeof window.db.collection !== 'function') {
+            console.warn('⚠️ Firestore no disponible, permitiendo cualquier nombre');
             return true;
         }
         
@@ -180,6 +181,7 @@ async function isUsernameAvailable(username) {
             return false;
         }
         
+        // Intentar consulta a Firestore
         const querySnapshot = await window.db
             .collection('users')
             .where('username_lower', '==', normalizedUsername)
@@ -192,7 +194,9 @@ async function isUsernameAvailable(username) {
         return available;
         
     } catch (error) {
-        console.error('❌ Error al validar username:', error);
+        console.warn('⚠️ Error consultando Firestore:', error.message);
+        // Si hay error de permisos o conexión, permitir el registro
+        // El servidor validará al momento de crear la cuenta
         return true;
     }
 }
