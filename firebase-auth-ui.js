@@ -45,8 +45,10 @@ function initializeAuth() {
         
         // Escuchar cambios de autenticación
         window.auth.onAuthStateChanged(async (firebaseUser) => {
+            console.log('🔥 Auth state changed - Usuario detectado:', firebaseUser ? firebaseUser.uid : 'null');
+            
             if (firebaseUser) {
-                console.log('✅ Usuario autenticado:', firebaseUser.email);
+                console.log('✅ Usuario autenticado:', firebaseUser.email, '| UID:', firebaseUser.uid);
                 
                 // Actualizar estado global
                 authState.isAuthenticated = true;
@@ -71,25 +73,20 @@ function initializeAuth() {
                 // Sincronizar con currentUser
                 syncCurrentUserWithAuth();
                 
-                // Ocultar pantalla de login
+                // Ir a Step-1 SOLO si estamos en Step-0 Y no inicializando
+                if (!isInitializing && getCurrentStep() === 0) {
+                    console.log('📱 Navegando a Step-1 (onAuthStateChanged)');
+                    goToStep(1);
+                } else {
+                    console.log('ℹ️ No se navega - isInitializing:', isInitializing, '| step actual:', getCurrentStep());
+                }
                 const step0 = document.getElementById('step-0');
                 if (step0) {
                     step0.style.display = 'none';
                 }
                 
-                // Ir a Step-1 si estamos en Step-0 y NO estamos inicializando
-                if (!isInitializing && getCurrentStep() === 0) {
-                    console.log('📱 Navegando a Step-1 (usuario autenticado después del init)');
-                    goToStep(1);
-                }
-                
-                // Cargar perfil completo (solo si no estamos inicializando)
-                if (!isInitializing) {
-                    await loadUserProfileFromFirebase(firebaseUser.uid);
-                }
-                
             } else {
-                console.log('⚠️ Usuario no autenticado');
+                console.log('❌ Usuario NO autenticado - mostrando Step-0');
                 authState.isAuthenticated = false;
                 authState.uid = null;
                 authState.email = null;
@@ -97,13 +94,7 @@ function initializeAuth() {
                 authState.displayName = null;
                 authState.photoURL = null;
                 
-                // Mostrar pantalla de login
-                const step0 = document.getElementById('step-0');
-                if (step0) {
-                    step0.style.display = 'block';
-                }
-                
-                // Volver a Step-0 solo si NO estamos inicializando
+                // Volver a Step-0 solo si NO estamos inicializando Y no estamos ya en Step-0
                 if (!isInitializing && getCurrentStep() !== 0) {
                     console.log('🔓 Navegando a Step-0 (usuario desautenticado)');
                     goToStep(0);

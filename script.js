@@ -3121,7 +3121,8 @@ async function loadPoolsEvents() {
  * Inicializa la aplicación
  */
 async function initApp() {
-    console.log('🚀 Iniciando aplicación Pool...');
+    console.log('🔥 Iniciando aplicación Pool...');
+    console.log('🔥 Iniciando auth check...');
     
     try {
         // PASO 1: Inicializar Firebase PRIMERO
@@ -3142,11 +3143,12 @@ async function initApp() {
         // PASO 5: Esperar un poco más para que onAuthStateChanged se dispare
         await new Promise(resolve => setTimeout(resolve, 1000));
         
-        // PASO 6: Verificar estado de autenticación
+        // SOLO verificamos el estado pero NO navegamos directamente
+        // La navegación la maneja onAuthStateChanged
         const firebaseUser = window.auth?.currentUser;
         
         if (firebaseUser) {
-            console.log('✅ Usuario autenticado detectado:', firebaseUser.email);
+            console.log('✅ Usuario detectado en initApp:', firebaseUser.email, firebaseUser.uid);
             
             // Cargar datos del usuario
             try {
@@ -3181,18 +3183,18 @@ async function initApp() {
             }
             
         } else {
-            console.log('ℹ️ No hay sesión activa - Step-0 visible');
+            console.log('❌ Usuario NO autenticado en initApp - Step-0 será mostrado por onAuthStateChanged');
         }
         
-        // PASO 7: Marcar que ya terminó la inicialización
-        // Esto permite que onAuthStateChanged navegue automáticamente
+        // IMPORTANTE: onAuthStateChanged maneja la navegación
+        // NO llamamos goToStep(1) directamente aquí
         isInitializing = false;
-        console.log('✅ Inicialización completada - Mode automático habilitado');
+        console.log('🔥 Inicialización completada - onAuthStateChanged manejará navegación');
         
-        // Mostrar pantalla principal
+        // Solo actualizamos UI sin navegar
         updateUI();
         
-        console.log('✅ Aplicación de Pools iniciada correctamente');
+        console.log('✅ Aplicación iniciada - esperando auth de Firebase...');
         
     } catch (error) {
         console.error('❌ Error al inicializar la app:', error);
