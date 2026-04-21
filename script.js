@@ -1319,55 +1319,77 @@ async function deletePoolEvent(eventId) {
             return;
         }
 
-        console.log('🗑️ Eliminando pool:', eventId);
+        console.log('🗑️ INICIANDO ELIMINACIÓN DEL POOL');
+        console.log('   ID:', eventId);
         console.log('   Ubicación:', event.location);
         console.log('   Creador:', event.createdBy);
 
-        // 1. Eliminar de Firestore (usando PoolStorage)
+        // ===== PASO 1: Eliminar de Firestore (la fuente de verdad) =====
+        let deletedFromFirestore = false;
+        
         if (FIREBASE_ENABLED && window.db && typeof PoolStorage !== 'undefined') {
             try {
                 console.log('   📡 Eliminando de Firestore...');
-                await PoolStorage.deletePool(eventId);
-                console.log('   ✅ Eliminado de Firestore');
+                deletedFromFirestore = await PoolStorage.deletePool(eventId);
+                
+                if (deletedFromFirestore) {
+                    console.log('   ✅ Firestore: Eliminación EXITOSA');
+                } else {
+                    console.error('   ❌ Firestore: La función retornó false');
+                    throw new Error('PoolStorage.deletePool() returned false');
+                }
             } catch (error) {
-                console.warn('   ⚠️ Error eliminando de Firestore:', error.message);
-                // Continuar de todas formas para limpiar local
+                console.error('   ❌ ERROR al eliminar de Firestore:', error.message);
+                showNotification(`❌ Error: No se pudo eliminar de Firestore: ${error.message}`, 'danger');
+                return; // DETENER si falla la eliminación en Firestore
             }
         } else {
-            console.log('   ⚠️ Firebase no disponible, solo eliminando localmente');
+            console.log('   ⚠️ Firebase no disponible, continuando solo con localStorage');
+            deletedFromFirestore = true; // Asumir éxito si no hay Firebase
         }
 
-        // 2. Eliminar de poolsEvents
-        console.log('   📝 Eliminando de estado local...');
-        poolsEvents = poolsEvents.filter(e => e.id !== eventId);
-        console.log('   ✅ Eliminado del array local');
+        // ===== PASO 2: Solo si fue exitoso en Firestore, actualizar local =====
+        if (deletedFromFirestore) {
+            console.log('   📝 Limpiando estado local...');
+            
+            // Guardar antes y después para auditoría
+            const beforeCount = poolsEvents.length;
+            poolsEvents = poolsEvents.filter(e => e.id !== eventId);
+            const afterCount = poolsEvents.length;
+            
+            console.log(`   ✅ Array poolsEvents actualizado (${beforeCount} → ${afterCount})`);
 
-        // 3. Guardar en localStorage
-        console.log('   💾 Eliminando de localStorage...');
-        localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(poolsEvents));
-        console.log('   ✅ Eliminado de localStorage');
+            // Guardar en localStorage
+            console.log('   💾 Guardando en localStorage...');
+            localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(poolsEvents));
+            console.log('   ✅ localStorage actualizado');
 
-        // 4. Actualizar UI
-        console.log('   🎨 Actualizando UI...');
-        await updatePoolsList().catch(error => {
-            console.warn('   ⚠️ Error actualizando lista:', error);
-            // Igual mostrar mensaje de éxito
-        });
-        console.log('   ✅ UI actualizada');
+            // ===== PASO 3: Actualizar UI =====
+            console.log('   🎨 Actualizando UI...');
+            try {
+                await updatePoolsList().catch(error => {
+                    console.warn('   ⚠️ Error actualizando lista:', error.message);
+                    // Igual mostrar mensaje de éxito porque la eliminación fue exitosa
+                });
+                console.log('   ✅ UI actualizada');
+            } catch (uiError) {
+                console.warn('   ⚠️ Error en updatePoolsList:', uiError.message);
+            }
 
-        // 5. Mostrar confirmación
-        showNotification('✅ Pool eliminado correctamente', 'success');
-        console.log('✅ ELIMINACIÓN COMPLETADA - Pool:', eventId);
+            // ===== PASO 4: Mostrar confirmación =====
+            showNotification('✅ Pool eliminado correctamente', 'success');
+            console.log('✅ ELIMINACIÓN COMPLETADA CON ÉXITO');
 
-        // 6. Si estamos en Step-11 (detalles del pool eliminado), volver a Step-9
-        if (getCurrentStep() === 11 && appState.poolId === eventId) {
-            console.log('   📱 Volviendo a mis pools...');
-            goToStep(9);
+            // ===== PASO 5: Si estamos en el detalle del pool eliminado, volver atrás =====
+            if (getCurrentStep() === 11 && appState.poolId === eventId) {
+                console.log('   📱 Volviendo a mis pools...');
+                goToStep(9);
+            }
         }
 
     } catch (error) {
-        console.error('❌ Error en eliminación:', error);
-        showNotification('❌ Error al eliminar pool', 'warning');
+        console.error('❌ Error no manejado en deletePoolEvent:', error);
+        showNotification('❌ Error inesperado al eliminar pool', 'danger');
     }
 }
 

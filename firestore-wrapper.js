@@ -166,22 +166,85 @@ const PoolStorage = {
      * Elimina un pool
      */
     async deletePool(poolId) {
+        console.log('🗑️ INICIANDO ELIMINACIÓN DEL POOL:', poolId);
+        
+        let firestoreDeleted = false;
+        let localStorageDeleted = false;
+        
         try {
-            // Firebase
+            // PASO 1: Eliminar de Firebase PRIMERO (es la fuente de verdad)
             if (FIREBASE_ENABLED && window.db) {
-                await window.db.collection('pools').doc(String(poolId)).delete();
-                console.log('✅ Pool eliminado de Firebase');
+                try {
+                    console.log('   📡 Eliminando de Firestore...');
+                    const poolRef = window.db.collection('pools').doc(String(poolId));
+                    
+                    // Verificar que el documento existe antes de eliminar
+                    const docSnapshot = await poolRef.get();
+                    if (docSnapshot.exists) {
+                        await poolRef.delete();
+                        console.log('   ✅ Pool ELIMINADO EXITOSAMENTE de Firestore');
+                        firestoreDeleted = true;
+                        
+                        // Verificar que se eliminó
+                        const afterDelete = await poolRef.get();
+                        if (!afterDelete.exists) {
+                            console.log('   ✓ Verificación: El documento NO existe en Firestore (eliminación confirmada)');
+                        } else {
+                            console.warn('   ⚠️ ADVERTENCIA: El documento AÚN EXISTE en Firestore después de delete');
+                        }
+                    } else {
+                        console.warn('   ⚠️ El documento NO existe en Firestore. Quizás ya fue eliminado.');
+                        firestoreDeleted = true; // Considerarlo como eliminado
+                    }
+                } catch (firestoreError) {
+                    console.error('   ❌ ERROR al eliminar de Firestore:', firestoreError.message);
+                    console.error('   Código de error:', firestoreError.code);
+                    // NO continuar si falla en Firestore
+                    throw new Error(`Firestore delete failed: ${firestoreError.message}`);
+                }
+            } else {
+                console.log('   ⚠️ Firebase no disponible, saltando Firestore');
             }
             
-            // localStorage
-            let poolsEvents = JSON.parse(localStorage.getItem('pool_events') || '[]');
-            poolsEvents = poolsEvents.filter(p => p.id != poolId);
-            localStorage.setItem('pool_events', JSON.stringify(poolsEvents));
+            // PASO 2: Solo si Firestore fue exitoso (o no hay Firebase), eliminar de localStorage
+            try {
+                console.log('   💾 Eliminando de localStorage...');
+                let poolsEvents = JSON.parse(localStorage.getItem('pool_events') || '[]');
+                const beforeCount = poolsEvents.length;
+                poolsEvents = poolsEvents.filter(p => p.id != poolId);
+                const afterCount = poolsEvents.length;
+                
+                if (afterCount < beforeCount) {
+                    localStorage.setItem('pool_events', JSON.stringify(poolsEvents));
+                    console.log(`   ✅ Eliminado de localStorage (${beforeCount} → ${afterCount} pools)`);
+                    localStorageDeleted = true;
+                } else {
+                    console.log('   ℹ️ El pool no estaba en localStorage');
+                    localStorageDeleted = true; // No es un error si no estaba aquí
+                }
+            } catch (storageError) {
+                console.error('   ⚠️ Error al eliminar de localStorage:', storageError.message);
+                // Esto no es crítico, continuar
+            }
             
-            return true;
+            // Resultado final
+            const success = firestoreDeleted || !FIREBASE_ENABLED;
+            if (success) {
+                console.log('✅ ELIMINACIÓN COMPLETADA:', {
+                    poolId,
+                    firestoreDeleted,
+                    localStorageDeleted,
+                    firebaseEnabled: FIREBASE_ENABLED
+                });
+            }
+            
+            return success;
             
         } catch (error) {
-            console.error('❌ Error al eliminar pool:', error);
+            console.error('❌ ERROR CRÍTICO al eliminar pool:', error.message);
+            console.error('   El pool NO fue eliminado. Estado anterior:');
+            console.error('   - Firestore eliminado:', firestoreDeleted);
+            console.error('   - localStorage eliminado:', localStorageDeleted);
             return false;
         }
     },
