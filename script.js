@@ -2449,9 +2449,35 @@ function confirmPoolArrival(poolId) {
  * Muestra los detalles completos de un pool (Step-11)
  * @param {number} poolId - ID del pool a mostrar
  */
-function showPoolDetails(poolId) {
+async function showPoolDetails(poolId) {
     try {
-        const event = poolsEvents.find(e => e.id === poolId);
+        // 🔧 FIX: Primero cargar datos más recientes desde Firestore
+        let event = poolsEvents.find(e => e.id === poolId);
+        
+        if (FIREBASE_ENABLED && window.db) {
+            try {
+                const freshEvent = await PoolStorage.getPoolById(poolId);
+                if (freshEvent) {
+                    console.log('📡 Cargando datos frescos desde Firestore para pool:', poolId);
+                    
+                    // Actualizar en poolsEvents
+                    const idx = poolsEvents.findIndex(e => e.id === poolId);
+                    if (idx >= 0) {
+                        poolsEvents[idx] = freshEvent;
+                    } else {
+                        poolsEvents.push(freshEvent);
+                    }
+                    
+                    // Sincronizar localStorage
+                    localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(poolsEvents));
+                    
+                    event = freshEvent;
+                }
+            } catch(err) {
+                console.warn('⚠️ No se pudo cargar desde Firestore, usando datos locales:', err.message);
+            }
+        }
+        
         if (!event) {
             showNotification('⚠️ Pool no encontrado', 'warning');
             goToStep(1);
