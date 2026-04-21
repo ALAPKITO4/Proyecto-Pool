@@ -171,13 +171,13 @@ async function isUsernameAvailable(username) {
     try {
         if (!FIREBASE_ENABLED || !window.db) {
             console.warn('⚠️ Firestore no disponible');
-            return true; // Asumir disponible si no hay Firestore
+            return true;
         }
         
         const normalizedUsername = username.toLowerCase().trim();
         
         if (normalizedUsername.length < 3) {
-            return false; // Username muy corto
+            return false;
         }
         
         const querySnapshot = await window.db
@@ -187,13 +187,13 @@ async function isUsernameAvailable(username) {
             .get();
         
         const available = querySnapshot.empty;
-        console.log(`📋 Username "${username}" ${available ? 'disponible' : 'NO disponible'}`);
+        console.log(`📋 Username "${username}" ${available ? 'disponible' : 'ya en uso'}`);
         
         return available;
         
     } catch (error) {
         console.error('❌ Error al validar username:', error);
-        throw new Error('No se pudo validar el username');
+        return true;
     }
 }
 
@@ -229,7 +229,7 @@ async function signUpWithEmailPassword(email, username, password, rememberMe = f
         // Verificar que username está disponible
         const available = await isUsernameAvailable(username);
         if (!available) {
-            throw new Error('Username no está disponible');
+            throw new Error('El nombre de usuario ya está en uso');
         }
         
         // Crear usuario en Firebase Auth
