@@ -1,0 +1,36 @@
+// COPIAR Y PEGAR ESTO EN LA CONSOLA DEL NAVEGADOR
+// Esto elimina TODAS las funciones peligrosas del window
+
+// Funciones a eliminar
+const dangerousFunctions = [
+    'showAdminPanel',
+    'DELETE_ALL_POOLS',
+    'adminClearAllPools',
+    'adminClearLocalStorage',
+    'adminClearCache'
+];
+
+// Eliminar cada función
+dangerousFunctions.forEach(fn => {
+    if (window[fn]) {
+        console.log('🗑️ Eliminando:', fn);
+        window[fn] = undefined;
+        delete window[fn];
+    }
+});
+
+// Bloquear console.log para que no puedan ver nada
+// ESTO BLOQUEA LA CONSOLA COMPLETA - puede ser muy molesto
+// Descomenta la siguiente línea si querés bloquearla completamente:
+// console.log = console.warn = console.error = console.info = () => {};
+
+// Limpiar el prototype de window para evitar inyecciones
+Object.keys(window).forEach(key => {
+    if (typeof window[key] === 'function' && key.toLowerCase().includes('admin')) {
+        console.log('🗑️ Eliminando función oculta:', key);
+        window[key] = undefined;
+        delete window[key];
+    }
+});
+
+console.log('✅ Limpieza completada');

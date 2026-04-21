@@ -1394,6 +1394,18 @@ async function updatePoolsList() {
         console.log('📝 Usando pools de localStorage (Firebase no disponible)');
     }
     
+    // 🔧 ORDENAR POR FECHA DE CREACIÓN (newest first)
+    poolsEvents.sort((a, b) => {
+        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        // Los más nuevos primero, los sin fecha al final
+        if (dateA === 0 && dateB === 0) return 0;
+        if (dateA === 0) return 1;
+        if (dateB === 0) return -1;
+        return dateB - dateA;
+    });
+    console.log('📋 Pools ordenados por fecha de creación (newest → oldest)');
+    
     // 🔧 FIX: Validar que elementos existan (pueden no existir si no estamos en Step-9)
     const poolsList = document.getElementById('poolsList');
     const noMessage = document.getElementById('noPoolsMessage');
