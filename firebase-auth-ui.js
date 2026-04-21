@@ -25,6 +25,12 @@ const authState = {
 };
 
 /**
+ * Flag para controlar si estamos en modo inicialización
+ * Si es true, los listeners no navegarán automáticamente
+ */
+let isInitializing = true;
+
+/**
  * Inicializa el sistema de autenticación
  * Llamar después de inicializar Firebase
  */
@@ -71,13 +77,16 @@ function initializeAuth() {
                     step0.style.display = 'none';
                 }
                 
-                // Ir a Step-1 si estamos en Step-0
-                if (getCurrentStep() === 0) {
+                // Ir a Step-1 si estamos en Step-0 y NO estamos inicializando
+                if (!isInitializing && getCurrentStep() === 0) {
+                    console.log('📱 Navegando a Step-1 (usuario autenticado después del init)');
                     goToStep(1);
                 }
                 
-                // Cargar perfil completo
-                await loadUserProfileFromFirebase(firebaseUser.uid);
+                // Cargar perfil completo (solo si no estamos inicializando)
+                if (!isInitializing) {
+                    await loadUserProfileFromFirebase(firebaseUser.uid);
+                }
                 
             } else {
                 console.log('⚠️ Usuario no autenticado');
@@ -94,8 +103,9 @@ function initializeAuth() {
                     step0.style.display = 'block';
                 }
                 
-                // Volver a Step-0
-                if (getCurrentStep() !== 0) {
+                // Volver a Step-0 solo si NO estamos inicializando
+                if (!isInitializing && getCurrentStep() !== 0) {
+                    console.log('🔓 Navegando a Step-0 (usuario desautenticado)');
                     goToStep(0);
                 }
             }

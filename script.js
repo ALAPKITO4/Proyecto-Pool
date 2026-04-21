@@ -3184,6 +3184,11 @@ async function initApp() {
             console.log('ℹ️ No hay sesión activa - Step-0 visible');
         }
         
+        // PASO 7: Marcar que ya terminó la inicialización
+        // Esto permite que onAuthStateChanged navegue automáticamente
+        isInitializing = false;
+        console.log('✅ Inicialización completada - Mode automático habilitado');
+        
         // Mostrar pantalla principal
         updateUI();
         
