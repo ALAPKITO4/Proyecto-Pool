@@ -2819,7 +2819,15 @@ async function checkForSharedPool() {
         console.error('❌ POOL NO ENCONTRADO en ninguna fuente');
         console.error('   Buscado en: URL, Firestore, localStorage');
         showNotification('⚠️ Pool no encontrado. El link puede haber expirado.', 'warning');
-        setTimeout(() => goToStep(1), 2000);
+        
+        // SOLO ir a Step-1 si el usuario está autenticado
+        if (window.auth?.currentUser) {
+            console.log('📱 Pool no encontrado, navegando a Step-1 (usuario autenticado)');
+            goToStep(1);
+        } else {
+            console.log('📱 Pool no encontrado, navegar a Step-0 (usuario NO autenticado)');
+            goToStep(0);
+        }
     }
 }
 
@@ -3122,79 +3130,24 @@ async function loadPoolsEvents() {
  */
 async function initApp() {
     console.log('🔥 Iniciando aplicación Pool...');
-    console.log('🔥 Iniciando auth check...');
+    console.log('🔥 Esperando Firebase Auth...');
     
     try {
-        // PASO 1: Inicializar Firebase PRIMERO
-        console.log('1️⃣ Inicializando Firebase...');
+        // 1. Inicializar Firebase
         initializeFirebase();
         
-        // PASO 2: Pequeña pausa para que Firebase Auth se estabilice
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // PASO 3: Inicializar sistema de autenticación
-        console.log('2️⃣ Inicializando autenticación...');
+        // 2. Inicializar autenticación (configura onAuthStateChanged)
         initializeAuth();
         
-        // PASO 4: Cargar datos generales
+        // 3. Cargar estado local
         loadState();
         setupEventListeners();
         
-        // PASO 5: Esperar un poco más para que onAuthStateChanged se dispare
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // SOLO verificamos el estado pero NO navegamos directamente
-        // La navegación la maneja onAuthStateChanged
-        const firebaseUser = window.auth?.currentUser;
-        
-        if (firebaseUser) {
-            console.log('✅ Usuario detectado en initApp:', firebaseUser.email, firebaseUser.uid);
-            
-            // Cargar datos del usuario
-            try {
-                await loadUserProfileFromFirebase(firebaseUser.uid);
-            } catch (e) {
-                console.warn('⚠️ Error cargando perfil:', e.message);
-            }
-            
-            // Cargar pools
-            try {
-                await loadPoolsEvents();
-                await loadUserAcceptedPools();
-                startGlobalPoolListener();
-            } catch (e) {
-                console.warn('⚠️ Error cargando pools:', e.message);
-            }
-            
-            // Verificar pool compartido en URL
-            const urlParams = new URLSearchParams(window.location.search);
-            const poolId = urlParams.get('poolId');
-            
-            if (poolId) {
-                console.log('📲 Pool compartido detectado en URL:', poolId);
-                try {
-                    await checkForSharedPool();
-                } catch (e) {
-                    console.warn('⚠️ Error al procesar pool compartido:', e.message);
-                }
-            } else {
-                // Pre-cargar pools
-                updatePoolsList().catch(error => console.warn('⚠️ Error pre-cargando pools:', error));
-            }
-            
-        } else {
-            console.log('❌ Usuario NO autenticado en initApp - Step-0 será mostrado por onAuthStateChanged');
-        }
-        
-        // IMPORTANTE: onAuthStateChanged maneja la navegación
-        // NO llamamos goToStep(1) directamente aquí
+        // 4. IMPORTANTE: onAuthStateChanged maneja TODA la navegación
+        // NO verificamos auth.currentUser manualmente
+        // Firebase Auth es la única fuente de verdad
         isInitializing = false;
-        console.log('🔥 Inicialización completada - onAuthStateChanged manejará navegación');
-        
-        // Solo actualizamos UI sin navegar
-        updateUI();
-        
-        console.log('✅ Aplicación iniciada - esperando auth de Firebase...');
+        console.log('🔥 App iniciada - esperando Firebase Auth...');
         
     } catch (error) {
         console.error('❌ Error al inicializar la app:', error);

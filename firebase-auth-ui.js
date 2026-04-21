@@ -45,7 +45,7 @@ function initializeAuth() {
         
         // Escuchar cambios de autenticación
         window.auth.onAuthStateChanged(async (firebaseUser) => {
-            console.log('🔥 Auth state changed - Usuario detectado:', firebaseUser ? firebaseUser.uid : 'null');
+            console.log('🔥 Auth state changed - Usuario:', firebaseUser ? firebaseUser.uid : 'null');
             
             if (firebaseUser) {
                 console.log('✅ Usuario autenticado:', firebaseUser.email, '| UID:', firebaseUser.uid);
@@ -73,16 +73,42 @@ function initializeAuth() {
                 // Sincronizar con currentUser
                 syncCurrentUserWithAuth();
                 
-                // Ir a Step-1 SOLO si estamos en Step-0 Y no inicializando
-                if (!isInitializing && getCurrentStep() === 0) {
-                    console.log('📱 Navegando a Step-1 (onAuthStateChanged)');
-                    goToStep(1);
-                } else {
-                    console.log('ℹ️ No se navega - isInitializing:', isInitializing, '| step actual:', getCurrentStep());
+                // Cargar datos del usuario (perfil y pools)
+                try {
+                    if (typeof loadUserProfileFromFirebase === 'function') {
+                        await loadUserProfileFromFirebase(firebaseUser.uid);
+                    }
+                    if (typeof loadPoolsEvents === 'function') {
+                        await loadPoolsEvents();
+                    }
+                    if (typeof loadUserAcceptedPools === 'function') {
+                        await loadUserAcceptedPools();
+                    }
+                    if (typeof startGlobalPoolListener === 'function') {
+                        startGlobalPoolListener();
+                    }
+                    console.log('✅ Datos de usuario cargados');
+                } catch (e) {
+                    console.warn('⚠️ Error cargando datos:', e.message);
                 }
-                const step0 = document.getElementById('step-0');
-                if (step0) {
-                    step0.style.display = 'none';
+                
+                // Verificar si hay pool compartido en URL
+                const urlParams = new URLSearchParams(window.location.search);
+                const poolId = urlParams.get('poolId');
+                
+                if (poolId) {
+                    console.log('📲 Pool compartido en URL:', poolId);
+                    if (typeof checkForSharedPool === 'function') {
+                        await checkForSharedPool();
+                    }
+                } else {
+                    // Ir a Step-1 SOLO si estamos en Step-0 Y no inicializando Y no hay poolId
+                    if (!isInitializing && getCurrentStep() === 0) {
+                        console.log('📱 Navegando a Step-1 (onAuthStateChanged)');
+                        goToStep(1);
+                    } else {
+                        console.log('ℹ️ No se navega - isInitializing:', isInitializing, '| step actual:', getCurrentStep());
+                    }
                 }
                 
             } else {
@@ -93,6 +119,12 @@ function initializeAuth() {
                 authState.username = null;
                 authState.displayName = null;
                 authState.photoURL = null;
+                
+                // Limpiar datos locales cuando no hay auth
+                if (currentUser) {
+                    currentUser.uid = null;
+                    currentUser.email = null;
+                }
                 
                 // Volver a Step-0 solo si NO estamos inicializando Y no estamos ya en Step-0
                 if (!isInitializing && getCurrentStep() !== 0) {
