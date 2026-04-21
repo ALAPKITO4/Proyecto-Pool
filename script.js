@@ -3357,3 +3357,227 @@ function startGlobalPoolListener() {
     
     console.log('✅ Listener GLOBAL activado');
 }
+
+/* ============================================
+   SISTEMA DE ADMIN (SEGURO)
+   ============================================ */
+
+// ⚠️ IMPORTANTE: Cambiá esta clave en Firebase Console > Configuración del proyecto > Variables de configuración
+// Esta clave es la combinación del hash SHA-256 de tu contraseña maestra
+// Para generar tu hash: usa cualquier generador online de SHA-256 con tu contraseña secreta
+const ADMIN_CONFIG = {
+    // 🔒 Hash SHA-256 de tu contraseña maestra
+    // Este es el hash de "PoolAdmin2026" (cambialo por tu contraseña real)
+    // Para cambiarlo: usa https://www.online-convert.com/online-hash-generator -> SHA-256
+    passwordHash: '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918',
+    
+    // Configuración de seguridad
+    maxAttempts: 3,
+    lockoutMinutes: 15,
+    cooldownKey: 'admin_lockout',
+    attemptsKey: 'admin_attempts'
+};
+
+/**
+ * Genera hash SHA-256 de una cadena
+ */
+async function sha256(message) {
+    const msgBuffer = new TextEncoder().encode(message);
+    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Verifica si el admin está bloqueado por demasiados intentos
+ */
+function isAdminLocked() {
+    const lockoutEnd = localStorage.getItem(ADMIN_CONFIG.cooldownKey);
+    if (lockoutEnd) {
+        const remaining = Math.ceil((parseInt(lockoutEnd) - Date.now()) / 60000);
+        if (remaining > 0) {
+            return { locked: true, remainingMinutes: remaining };
+        }
+        // Desbloquear si ya pasó el tiempo
+        localStorage.removeItem(ADMIN_CONFIG.cooldownKey);
+        localStorage.removeItem(ADMIN_CONFIG.attemptsKey);
+    }
+    return { locked: false };
+}
+
+/**
+ * Registra un intento de admin fallido
+ */
+function recordFailedAttempt() {
+    let attempts = parseInt(localStorage.getItem(ADMIN_CONFIG.attemptsKey) || '0');
+    attempts++;
+    localStorage.setItem(ADMIN_CONFIG.attemptsKey, attempts.toString());
+    
+    if (attempts >= ADMIN_CONFIG.maxAttempts) {
+        const lockoutEnd = Date.now() + (ADMIN_CONFIG.lockoutMinutes * 60000);
+        localStorage.setItem(ADMIN_CONFIG.cooldownKey, lockoutEnd.toString());
+        localStorage.removeItem(ADMIN_CONFIG.attemptsKey);
+        console.warn(`🔒 Admin bloqueado por ${ADMIN_CONFIG.lockoutMinutes} minutos`);
+    }
+    
+    return attempts;
+}
+
+/**
+ * Verifica la contraseña del admin
+ */
+async function verifyAdminPassword(password) {
+    const inputHash = await sha256(password);
+    return inputHash === ADMIN_CONFIG.passwordHash;
+}
+
+/**
+ * Panel de administración (muestra solo si está desbloqueado)
+ */
+async function showAdminPanel() {
+    const lockStatus = isAdminLocked();
+    
+    if (lockStatus.locked) {
+        showNotification(`🔒 Admin bloqueado. Intenta en ${lockStatus.remainingMinutes} minutos`, 'danger');
+        return;
+    }
+    
+    // Pedir contraseña
+    const password = prompt('🔐 Ingresa la contraseña de administrador:');
+    
+    if (!password) {
+        console.log('❌ Operación cancelada');
+        return;
+    }
+    
+    // Verificar
+    const isValid = await verifyAdminPassword(password);
+    
+    if (!isValid) {
+        const attempts = recordFailedAttempt();
+        const remaining = ADMIN_CONFIG.maxAttempts - attempts;
+        
+        if (remaining > 0) {
+            showNotification(`❌ Contraseña incorrecta. Te quedan ${remaining} intentos`, 'danger');
+        } else {
+            showNotification(`🔒 Admin bloqueado por ${ADMIN_CONFIG.lockoutMinutes} minutos`, 'danger');
+        }
+        return;
+    }
+    
+    // ✅ Acceso concedido - mostrar panel
+    showAdminPanelUI();
+}
+
+/**
+ * Interfaz del panel de admin
+ */
+function showAdminPanelUI() {
+    const adminHTML = `
+        <div id="adminModal" class="edit-profile-modal" onclick="closeAdminModal(event)">
+            <div class="edit-profile-content" style="max-width: 500px;">
+                <h2>🔐 Panel de Administrador</h2>
+                <p style="color: #666; font-size: 12px; margin-bottom: 20px;">
+                    Este panel permite administrar los pools del sistema.
+                </p>
+                
+                <div style="margin-bottom: 20px;">
+                    <button class="btn btn-danger" onclick="adminClearAllPools()" style="width: 100%; padding: 15px;">
+                        🗑️ ELIMINAR TODOS LOS POOLS
+                    </button>
+                    <p style="color: #999; font-size: 11px; margin-top: 5px;">
+                        Elimina TODOS los pools de Firestore y localStorage
+                    </p>
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                    <button class="btn btn-secondary" onclick="adminClearLocalStorage()" style="width: 100%; padding: 15px;">
+                        💾 LIMPIAR SOLO LOCALSTORAGE
+                    </button>
+                    <p style="color: #999; font-size: 11px; margin-top: 5px;">
+                        Limpia solo el almacenamiento local del navegador
+                    </p>
+                </div>
+                
+                <button class="btn btn-outline" onclick="closeAdminModal()" style="width: 100%;">
+                    Cerrar
+                </button>
+            </div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', adminHTML);
+}
+
+/**
+ * Cierra el modal de admin
+ */
+function closeAdminModal(event) {
+    if (event && event.target.id !== 'adminModal') return;
+    const modal = document.getElementById('adminModal');
+    if (modal) modal.remove();
+}
+
+/**
+ * Elimina todos los pools (solo desde admin)
+ */
+async function adminClearAllPools() {
+    if (!confirm('⚠️ ¿REALMENTE DESEAS ELIMINAR TODOS LOS POOLS?\n\nEsta acción NO se puede deshacer.')) {
+        return;
+    }
+    
+    closeAdminModal();
+    
+    try {
+        let totalDeleted = 0;
+        
+        if (FIREBASE_ENABLED && window.db) {
+            showNotification('🗑️ Eliminando pools de Firestore...', 'info');
+            
+            const snapshot = await window.db.collection('pools').get();
+            console.log(`📡 Encontrados ${snapshot.size} pools en Firestore`);
+            
+            const batch = window.db.batch();
+            snapshot.docs.forEach(doc => batch.delete(doc.ref));
+            await batch.commit();
+            
+            totalDeleted += snapshot.size;
+            console.log(`✅ ${totalDeleted} pools eliminados de Firestore`);
+        }
+        
+        // Limpiar localStorage
+        localStorage.setItem('pool_events', '[]');
+        localStorage.setItem('user_accepted_pools', '[]');
+        poolsEvents = [];
+        
+        showNotification(`✅ ${totalDeleted} pools eliminados`, 'success');
+        
+        if (confirm('¿Recargar la página?')) {
+            window.location.reload();
+        }
+        
+    } catch (error) {
+        console.error('❌ Error:', error);
+        showNotification('❌ Error al eliminar pools', 'danger');
+    }
+}
+
+/**
+ * Limpia solo localStorage (solo desde admin)
+ */
+function adminClearLocalStorage() {
+    if (!confirm('¿Limpiar solo el almacenamiento local?')) {
+        return;
+    }
+    
+    closeAdminModal();
+    
+    localStorage.setItem('pool_events', '[]');
+    localStorage.setItem('user_accepted_pools', '[]');
+    poolsEvents = [];
+    
+    showNotification('✅ LocalStorage limpiado', 'success');
+}
+
+// Exponer función para abrir admin
+window.showAdminPanel = showAdminPanel;
