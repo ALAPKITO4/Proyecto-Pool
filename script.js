@@ -1570,8 +1570,16 @@ async function deletePoolEvent(eventId) {
         }
 
         // Verificar permisos: solo el creador puede borrar el pool completo
-        const isCreator = event.createdBy === currentUser.nombre || event.createdByUid === currentUser.uid;
-        if (!isCreator && currentUser.nombre) {
+        const isCreator = isNameMatch(event.createdBy, currentUser.nombre) || event.createdByUid === currentUser.uid;
+        
+        if (!hasUserProfile()) {
+            console.warn('⚠️ Usuario sin perfil completo');
+            showNotification('⚠️ Debes crear tu perfil primero', 'warning');
+            goToStep(0);
+            return;
+        }
+        
+        if (!isCreator) {
             console.warn('⚠️ Solo el creador puede eliminar el pool');
             showNotification('⚠️ Solo el creador puede eliminar este pool', 'warning');
             return;
