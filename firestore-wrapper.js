@@ -323,7 +323,7 @@ const UserStorage = {
                     uid: window.auth.currentUser.uid,
                     email: window.auth.currentUser.email,
                     lastUpdated: new Date().toISOString()
-                });
+                }, { merge: true }); // ✅ merge: true para actualizar sin perder datos
                 console.log('✅ Usuario guardado en Firebase');
             }
             
@@ -340,18 +340,21 @@ const UserStorage = {
         }
     },
     
-    async getUser() {
+    async getUser(uid = null) {
         try {
+            // Determinar qué UID usar
+            const targetUid = uid || (window.auth?.currentUser?.uid);
+            
             // Firebase
-            if (FIREBASE_ENABLED && window.auth && window.auth.currentUser) {
-                const doc = await window.db.collection('users').doc(window.auth.currentUser.uid).get();
+            if (FIREBASE_ENABLED && window.db && targetUid) {
+                const doc = await window.db.collection('users').doc(targetUid).get();
                 if (doc.exists) {
-                    console.log('✅ Usuario cargado de Firebase');
+                    console.log('✅ Usuario cargado de Firebase:', targetUid);
                     return doc.data();
                 }
             }
             
-            // localStorage
+            // localStorage (fallback)
             const stored = localStorage.getItem('pool_user_profile');
             if (stored) {
                 console.log('📝 Usuario cargado de localStorage');

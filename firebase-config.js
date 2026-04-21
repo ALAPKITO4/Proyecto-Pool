@@ -55,12 +55,31 @@ function initializeFirebase() {
             return false;
         }
 
+        // Verificar si ya está inicializado
+        if (firebase.apps.length > 0) {
+            console.log('ℹ️ Firebase ya está inicializado');
+            window.db = firebase.firestore();
+            window.auth = firebase.auth();
+            FIREBASE_ENABLED = true;
+            return true;
+        }
+
         // Inicializar Firebase con config
         firebase.initializeApp(FIREBASE_CONFIG);
         
         // Obtener referencias globales
         window.db = firebase.firestore();
         window.auth = firebase.auth();
+        
+        // ✅ NUEVO: Configurar persistencia de Auth
+        // Mantener sesión activa entre recargas
+        window.auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)
+            .then(() => {
+                console.log('✅ Persistencia de Auth configurada');
+            })
+            .catch(error => {
+                console.warn('⚠️ No se pudo configurar persistencia:', error.message);
+            });
         
         console.log('✅ Firebase inicializado correctamente');
         FIREBASE_ENABLED = true;

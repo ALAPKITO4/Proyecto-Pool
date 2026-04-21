@@ -429,9 +429,19 @@ function loadUserProfile() {
 
 /**
  * Verifica si el usuario tiene perfil configurado
- * @returns {boolean} - True si tiene perfil, false si debe configurarlo
+ * Ahora es compatible con:
+ * - Usuario autenticado con Firebase (nuevo)
+ * - Usuario con perfil manual (antiguo, para compatibilidad)
+ * @returns {boolean} - True si tiene perfil, false si debe autenticarse
  */
 function hasUserProfile() {
+    // Nuevo sistema: Usuario autenticado con Firebase
+    if (isUserAuthenticated()) {
+        return true;
+    }
+    
+    // Sistema antiguo: verificar si tiene nombre y teléfono
+    // (para mantener compatibilidad con usuarios existentes)
     return currentUser.nombre && currentUser.telefono;
 }
 
@@ -442,6 +452,248 @@ function handleEnterUserCreation(event) {
     if (event.key === 'Enter') {
         createUserProfile();
     }
+}
+
+/* ============================================
+   NUEVO SISTEMA DE AUTENTICACIÓN FIREBASE
+   ============================================ */
+
+/**
+ * Muestra/oculta los diferentes modos de autenticación
+ * @param {string} mode - 'choice', 'login', 'register'
+ */
+function showAuthMode(mode) {
+    const choiceMode = document.getElementById('authChoiceMode');
+    const loginMode = document.getElementById('authLoginMode');
+    const registerMode = document.getElementById('authRegisterMode');
+    
+    // Ocultar todos
+    if (choiceMode) choiceMode.style.display = 'none';
+    if (loginMode) loginMode.style.display = 'none';
+    if (registerMode) registerMode.style.display = 'none';
+    
+    // Mostrar el seleccionado
+    switch (mode) {
+        case 'choice':
+            if (choiceMode) choiceMode.style.display = 'block';
+            break;
+        case 'login':
+            if (loginMode) loginMode.style.display = 'block';
+            // Enfocar en email
+            setTimeout(() => {
+                const email = document.getElementById('loginEmail');
+                if (email) email.focus();
+            }, 100);
+            break;
+        case 'register':
+            if (registerMode) registerMode.style.display = 'block';
+            // Enfocar en email
+            setTimeout(() => {
+                const email = document.getElementById('registerEmail');
+                if (email) email.focus();
+            }, 100);
+            break;
+    }
+}
+
+/**
+ * Realiza login con email y contraseña
+ */
+async function performEmailLogin() {
+    try {
+        const email = document.getElementById('loginEmail').value.trim();
+        const password = document.getElementById('loginPassword').value;
+        const rememberMe = document.getElementById('loginRememberMe').checked;
+        const errorDiv = document.getElementById('loginError');
+        
+        // Validaciones
+        if (!email || !password) {
+            errorDiv.textContent = '❌ Por favor completa todos los campos';
+            errorDiv.style.display = 'block';
+            return;
+        }
+        
+        // Mostrar loading
+        errorDiv.style.display = 'none';
+        showNotification('🔓 Iniciando sesión...', 'info');
+        
+        // Ejecutar login
+        const result = await signInWithEmailPassword(email, password, rememberMe);
+        
+        if (result.success) {
+            showNotification(`✅ ¡Bienvenido, ${result.email}!`, 'success');
+            // El onAuthStateChanged de initializeAuth() se encargará de navegar a Step-1
+        }
+        
+    } catch (error) {
+        const errorDiv = document.getElementById('loginError');
+        errorDiv.textContent = `❌ ${error.message}`;
+        errorDiv.style.display = 'block';
+        console.error('Error en login:', error);
+    }
+}
+
+/**
+ * Realiza registro con email, username y contraseña
+ */
+async function performEmailRegister() {
+    try {
+        const email = document.getElementById('registerEmail').value.trim();
+        const username = document.getElementById('registerUsername').value.trim();
+        const password = document.getElementById('registerPassword').value;
+        const termsCheckbox = document.getElementById('termsCheckbox').checked;
+        const errorDiv = document.getElementById('registerError');
+        
+        // Validaciones
+        if (!email || !username || !password) {
+            errorDiv.textContent = '❌ Por favor completa todos los campos';
+            errorDiv.style.display = 'block';
+            return;
+        }
+        
+        if (!termsCheckbox) {
+            errorDiv.textContent = '❌ Debes aceptar los términos de servicio';
+            errorDiv.style.display = 'block';
+            return;
+        }
+        
+        if (username.length < 3) {
+            errorDiv.textContent = '❌ Username debe tener al menos 3 caracteres';
+            errorDiv.style.display = 'block';
+            return;
+        }
+        
+        if (password.length < 8) {
+            errorDiv.textContent = '❌ Contraseña debe tener al menos 8 caracteres';
+            errorDiv.style.display = 'block';
+            return;
+        }
+        
+        // Mostrar loading
+        errorDiv.style.display = 'none';
+        showNotification('✍️ Creando tu cuenta...', 'info');
+        
+        // Ejecutar registro
+        const result = await signUpWithEmailPassword(email, username, password, false);
+        
+        if (result.success) {
+            showNotification(`✅ ¡Cuenta creada! Bienvenido, ${result.username}`, 'success');
+            // El onAuthStateChanged de initializeAuth() se encargará de navegar a Step-1
+        }
+        
+    } catch (error) {
+        const errorDiv = document.getElementById('registerError');
+        errorDiv.textContent = `❌ ${error.message}`;
+        errorDiv.style.display = 'block';
+        console.error('Error en registro:', error);
+    }
+}
+
+/**
+ * Realiza login con Google
+ */
+async function performGoogleAuth() {
+    try {
+        showNotification('🔵 Conectando con Google...', 'info');
+        const result = await signInWithGoogle(false); // No recordarme por defecto
+        
+        if (result.success) {
+            showNotification(`✅ ¡Bienvenido, ${result.displayName || result.email}!`, 'success');
+            // El onAuthStateChanged de initializeAuth() se encargará de navegar a Step-1
+        }
+    } catch (error) {
+        showNotification(`❌ ${error.message}`, 'danger');
+        console.error('Error en Google Auth:', error);
+    }
+}
+
+/**
+ * Realiza login con Apple
+ */
+async function performAppleAuth() {
+    try {
+        showNotification('🍎 Conectando con Apple...', 'info');
+        const result = await signInWithApple(false); // No recordarme por defecto
+        
+        if (result.success) {
+            showNotification(`✅ ¡Bienvenido, ${result.displayName || result.email}!`, 'success');
+            // El onAuthStateChanged de initializeAuth() se encargará de navegar a Step-1
+        }
+    } catch (error) {
+        showNotification(`❌ ${error.message}`, 'danger');
+        console.error('Error en Apple Auth:', error);
+    }
+}
+
+/**
+ * Maneja Enter en los campos de autenticación
+ */
+function handleEnterAuth(event) {
+    if (event.key !== 'Enter') return;
+    
+    const loginMode = document.getElementById('authLoginMode');
+    const registerMode = document.getElementById('authRegisterMode');
+    
+    if (loginMode && loginMode.style.display !== 'none') {
+        performEmailLogin();
+    } else if (registerMode && registerMode.style.display !== 'none') {
+        performEmailRegister();
+    }
+}
+
+/**
+ * Valida disponibilidad del username en tiempo real
+ */
+async function checkUsernameAvailability() {
+    const usernameInput = document.getElementById('registerUsername');
+    const statusDiv = document.getElementById('usernameStatus');
+    const username = usernameInput.value.trim();
+    
+    if (username.length < 3) {
+        statusDiv.style.display = 'none';
+        return;
+    }
+    
+    try {
+        const available = await isUsernameAvailable(username);
+        statusDiv.style.display = 'block';
+        
+        if (available) {
+            statusDiv.innerHTML = '<span style="color: #4CAF50;">✅ Usuario disponible</span>';
+        } else {
+            statusDiv.innerHTML = '<span style="color: #FF6B35;">❌ Usuario no disponible</span>';
+        }
+    } catch (error) {
+        statusDiv.style.display = 'block';
+        statusDiv.innerHTML = '<span style="color: #F44336;">⚠️ Error al validar</span>';
+    }
+}
+
+/**
+ * Muestra la fortaleza de la contraseña
+ */
+function updatePasswordStrength() {
+    const passwordInput = document.getElementById('registerPassword');
+    const strengthDiv = document.getElementById('passwordStrength');
+    const password = passwordInput.value;
+    
+    if (password.length === 0) {
+        strengthDiv.innerHTML = '';
+        return;
+    }
+    
+    let strength = 'Débil';
+    let color = '#FF6B35';
+    
+    if (password.length >= 8) strength = 'Regular';
+    if (password.length >= 12 && /[A-Z]/.test(password) && /[0-9]/.test(password)) strength = 'Fuerte';
+    if (password.length >= 16 && /[A-Z]/.test(password) && /[0-9]/.test(password) && /[!@#$%^&*]/.test(password)) strength = 'Muy Fuerte';
+    
+    if (strength === 'Regular') color = '#FFA500';
+    if (strength === 'Fuerte') color = '#4CAF50';
+    if (strength === 'Muy Fuerte') color = '#2196F3';
+    
+    strengthDiv.innerHTML = `<span style="color: ${color};">Fortaleza: ${strength}</span>`;
 }
 
 /**
@@ -482,16 +734,21 @@ function goToStep(stepNumber) {
 
 /**
  * Obtiene el número del paso actual
- * @returns {number} - Número del paso actual
+ * @returns {number} - Número del paso actual (0-11)
  */
 function getCurrentStep() {
     const screens = document.querySelectorAll('.screen');
     for (let i = 0; i < screens.length; i++) {
         if (screens[i].classList.contains('active')) {
-            return i + 1;
+            // Extraer el número del ID (step-0, step-1, etc)
+            const screenId = screens[i].id;
+            const stepMatch = screenId.match(/step-(\d+)/);
+            if (stepMatch) {
+                return parseInt(stepMatch[1], 10);
+            }
         }
     }
-    return 1;
+    return 0; // Default a Step-0 si no encuentra ninguno
 }
 
 /* ============================================
@@ -2864,48 +3121,77 @@ async function loadPoolsEvents() {
  * Inicializa la aplicación
  */
 async function initApp() {
-    // Cargar perfil del usuario
-    loadUserProfile();
-
-    // Cargar estado guardado
-    loadState();
-    loadPoolsEvents();
+    console.log('🚀 Iniciando aplicación Pool...');
     
-    // CRÍTICO: Cargar pools aceptadas por el usuario
-    await loadUserAcceptedPools();
-
-    // INICIAR LISTENER GLOBAL para tiempo real
-    startGlobalPoolListener();
-
-    // Configurar handlers globales
-    setupEventListeners();
-
-    // Verificar si hay un pool compartido en la URL
-    const urlParams = new URLSearchParams(window.location.search);
-    const poolId = urlParams.get('poolId');
-
-    // FLUJO DE INICIALIZACIÓN
-    if (!hasUserProfile()) {
-        // Si no tiene perfil → mostrar Step-0 (crear usuario)
-        goToStep(0);
-    } else {
-        // Si tiene perfil → actualizar header y navegar
-        updateUserProfileHeader();
+    try {
+        // PASO 1: Inicializar Firebase PRIMERO
+        console.log('1️⃣ Inicializando Firebase...');
+        initializeFirebase();
         
-        if (poolId) {
-            // Si hay poolId en URL → mostrar pantalla de invitación (Step-10)
-            await checkForSharedPool();
+        // PASO 2: Pequeña pausa para que Firebase Auth se estabilice
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // PASO 3: Inicializar sistema de autenticación
+        console.log('2️⃣ Inicializando autenticación...');
+        initializeAuth();
+        
+        // PASO 4: Cargar datos generales
+        loadState();
+        setupEventListeners();
+        
+        // PASO 5: Esperar un poco más para que onAuthStateChanged se dispare
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // PASO 6: Verificar estado de autenticación
+        const firebaseUser = window.auth?.currentUser;
+        
+        if (firebaseUser) {
+            console.log('✅ Usuario autenticado detectado:', firebaseUser.email);
+            
+            // Cargar datos del usuario
+            try {
+                await loadUserProfileFromFirebase(firebaseUser.uid);
+            } catch (e) {
+                console.warn('⚠️ Error cargando perfil:', e.message);
+            }
+            
+            // Cargar pools
+            try {
+                await loadPoolsEvents();
+                await loadUserAcceptedPools();
+                startGlobalPoolListener();
+            } catch (e) {
+                console.warn('⚠️ Error cargando pools:', e.message);
+            }
+            
+            // Verificar pool compartido en URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const poolId = urlParams.get('poolId');
+            
+            if (poolId) {
+                console.log('📲 Pool compartido detectado en URL:', poolId);
+                try {
+                    await checkForSharedPool();
+                } catch (e) {
+                    console.warn('⚠️ Error al procesar pool compartido:', e.message);
+                }
+            } else {
+                // Pre-cargar pools
+                updatePoolsList().catch(error => console.warn('⚠️ Error pre-cargando pools:', error));
+            }
+            
         } else {
-            // Si no hay poolId → mostrar menú principal (Step-1)
-            goToStep(1);
-            // 🔧 FIX: Pre-cargar pools en background (async, sin esperar)
-            updatePoolsList().catch(error => console.warn('⚠️ Error pre-cargando pools:', error));
+            console.log('ℹ️ No hay sesión activa - Step-0 visible');
         }
-    }
-
-    console.log('✅ Aplicación de Pools iniciada correctamente');
-    if (currentUser.nombre) {
-        console.log(`👤 Usuario: ${currentUser.nombre}`);
+        
+        // Mostrar pantalla principal
+        updateUI();
+        
+        console.log('✅ Aplicación de Pools iniciada correctamente');
+        
+    } catch (error) {
+        console.error('❌ Error al inicializar la app:', error);
+        showNotification('❌ Error al inicializar la aplicación', 'danger');
     }
 }
 

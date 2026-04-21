@@ -1,28 +1,32 @@
 /* ============================================
-   AUTENTICACIÓN CON FIREBASE + GOOGLE SIGN-IN
+   AUTENTICACIÓN FIREBASE - SISTEMA COMPLETO
    ============================================
    
-   Maneja:
-   - Google Sign-In
-   - Login
-   - Logout
-   - Persistencia de sesión
-   - Sincronización con currentUser
+   Soporta:
+   ✅ Login/Registro con username + password
+   ✅ Login con Google
+   ✅ Login con Apple
+   ✅ Validación de username único
+   ✅ Recordarme (persistencia)
+   ✅ Sincronización con currentUser
 */
 
 /**
- * Objeto que mantiene el estado de autenticación
+ * Estado global de autenticación
  */
 const authState = {
     isAuthenticated: false,
     uid: null,
     email: null,
+    username: null,
     displayName: null,
-    photoURL: null
+    photoURL: null,
+    rememberMe: false
 };
 
 /**
  * Inicializa el sistema de autenticación
+ * Llamar después de inicializar Firebase
  */
 function initializeAuth() {
     try {
@@ -31,44 +35,73 @@ function initializeAuth() {
             return;
         }
         
+        console.log('🔑 Inicializando sistema de autenticación...');
+        
         // Escuchar cambios de autenticación
-        window.auth.onAuthStateChanged(async (user) => {
-            if (user) {
-                console.log('✅ Usuario autenticado:', user.email);
+        window.auth.onAuthStateChanged(async (firebaseUser) => {
+            if (firebaseUser) {
+                console.log('✅ Usuario autenticado:', firebaseUser.email);
                 
                 // Actualizar estado global
                 authState.isAuthenticated = true;
-                authState.uid = user.uid;
-                authState.email = user.email;
-                authState.displayName = user.displayName;
-                authState.photoURL = user.photoURL;
+                authState.uid = firebaseUser.uid;
+                authState.email = firebaseUser.email;
+                authState.displayName = firebaseUser.displayName;
+                authState.photoURL = firebaseUser.photoURL;
                 
-                // Sincronizar con currentUser
-                if (currentUser) {
-                    currentUser.uid = user.uid;
-                    currentUser.email = user.email;
-                    if (user.displayName) currentUser.nombre = user.displayName;
-                    if (user.photoURL) currentUser.foto = user.photoURL;
+                // Obtener username desde Firestore
+                try {
+                    const userDoc = await UserStorage.getUser(firebaseUser.uid);
+                    if (userDoc) {
+                        authState.username = userDoc.username || firebaseUser.displayName || 'Usuario';
+                    } else {
+                        authState.username = firebaseUser.displayName || 'Usuario';
+                    }
+                } catch (e) {
+                    console.warn('⚠️ No se pudo obtener username:', e.message);
+                    authState.username = firebaseUser.displayName || 'Usuario';
                 }
                 
-                // Ocultar botón de Google Sign-In
-                hideGoogleSignInButton();
+                // Sincronizar con currentUser
+                syncCurrentUserWithAuth();
                 
-                // Cargar perfil del usuario
-                await loadUserProfileFromFirebase();
+                // Ocultar pantalla de login
+                const step0 = document.getElementById('step-0');
+                if (step0) {
+                    step0.style.display = 'none';
+                }
+                
+                // Ir a Step-1 si estamos en Step-0
+                if (getCurrentStep() === 0) {
+                    goToStep(1);
+                }
+                
+                // Cargar perfil completo
+                await loadUserProfileFromFirebase(firebaseUser.uid);
                 
             } else {
                 console.log('⚠️ Usuario no autenticado');
                 authState.isAuthenticated = false;
                 authState.uid = null;
                 authState.email = null;
+                authState.username = null;
                 authState.displayName = null;
                 authState.photoURL = null;
                 
-                // Mostrar botón de Google Sign-In
-                showGoogleSignInButton();
+                // Mostrar pantalla de login
+                const step0 = document.getElementById('step-0');
+                if (step0) {
+                    step0.style.display = 'block';
+                }
+                
+                // Volver a Step-0
+                if (getCurrentStep() !== 0) {
+                    goToStep(0);
+                }
             }
         });
+        
+        console.log('✅ Sistema de autenticación inicializado');
         
     } catch (error) {
         console.error('❌ Error al inicializar auth:', error);
@@ -76,94 +109,408 @@ function initializeAuth() {
 }
 
 /**
- * Inicia sesión con Google
+ * Sincroniza el objeto currentUser con authState
  */
-async function signInWithGoogle() {
-    try {
-        if (!FIREBASE_ENABLED || !window.auth) {
-            showNotification('⚠️ Autenticación no disponible', 'warning');
-            return false;
+function syncCurrentUserWithAuth() {
+    if (currentUser) {
+        currentUser.uid = authState.uid;
+        currentUser.email = authState.email;
+        currentUser.nombre = authState.displayName || authState.username || 'Usuario';
+        currentUser.username = authState.username;
+        if (authState.photoURL) {
+            currentUser.foto = authState.photoURL;
         }
         
-        const provider = new firebase.auth.GoogleAuthProvider();
+        console.log('✅ currentUser sincronizado con Auth');
+    }
+}
+
+/* ============================================
+   REGISTRO E LOGIN CON USERNAME + PASSWORD
+   ============================================ */
+
+/**
+ * Valida que un username sea único en Firestore
+ * @param {string} username - Username a validar
+ * @returns {Promise<boolean>} - true si está disponible
+ */
+async function isUsernameAvailable(username) {
+    try {
+        if (!FIREBASE_ENABLED || !window.db) {
+            console.warn('⚠️ Firestore no disponible');
+            return true; // Asumir disponible si no hay Firestore
+        }
         
-        // Mostrar popup de Google
-        const result = await window.auth.signInWithPopup(provider);
+        const normalizedUsername = username.toLowerCase().trim();
         
-        console.log('✅ Sesión con Google iniciada:', result.user.email);
+        if (normalizedUsername.length < 3) {
+            return false; // Username muy corto
+        }
         
-        // Crear perfil en Firebase si no existe
-        await UserStorage.saveUser({
-            nombre: result.user.displayName || 'Usuario',
-            email: result.user.email,
-            telefono: '',
-            foto: result.user.photoURL || null,
-            uid: result.user.uid
-        });
+        const querySnapshot = await window.db
+            .collection('users')
+            .where('username_lower', '==', normalizedUsername)
+            .limit(1)
+            .get();
         
-        return true;
+        const available = querySnapshot.empty;
+        console.log(`📋 Username "${username}" ${available ? 'disponible' : 'NO disponible'}`);
+        
+        return available;
         
     } catch (error) {
-        if (error.code === 'auth/popup-closed-by-user') {
-            console.log('⚠️ Popup cerrado por usuario');
-        } else {
-            console.error('❌ Error al iniciar con Google:', error);
-            showNotification('Error al iniciar sesión', 'error');
-        }
-        return false;
+        console.error('❌ Error al validar username:', error);
+        throw new Error('No se pudo validar el username');
     }
 }
 
 /**
- * Cierra sesión
+ * Crea una nueva cuenta con email y contraseña
+ * @param {string} email - Email del usuario
+ * @param {string} username - Username único
+ * @param {string} password - Contraseña (mínimo 8 caracteres)
+ * @param {boolean} rememberMe - Si se debe mantener la sesión
+ * @returns {Promise<Object>} - Resultado del registro
+ */
+async function signUpWithEmailPassword(email, username, password, rememberMe = false) {
+    try {
+        console.log('📝 Registrando nuevo usuario:', email);
+        
+        if (!FIREBASE_ENABLED || !window.auth) {
+            throw new Error('Firebase no disponible');
+        }
+        
+        // Validaciones
+        if (!email || !email.includes('@')) {
+            throw new Error('Email inválido');
+        }
+        
+        if (username.length < 3) {
+            throw new Error('Username debe tener al menos 3 caracteres');
+        }
+        
+        if (password.length < 8) {
+            throw new Error('Contraseña debe tener al menos 8 caracteres');
+        }
+        
+        // Verificar que username está disponible
+        const available = await isUsernameAvailable(username);
+        if (!available) {
+            throw new Error('Username no está disponible');
+        }
+        
+        // Crear usuario en Firebase Auth
+        const userCredential = await window.auth.createUserWithEmailAndPassword(email, password);
+        const firebaseUser = userCredential.user;
+        
+        console.log('✅ Usuario creado en Firebase Auth:', firebaseUser.uid);
+        
+        // Actualizar displayName
+        await firebaseUser.updateProfile({
+            displayName: username
+        });
+        
+        // Guardar información en Firestore
+        const userData = {
+            uid: firebaseUser.uid,
+            email: email,
+            username: username,
+            username_lower: username.toLowerCase(),
+            createdAt: new Date().toISOString(),
+            authMethod: 'email-password'
+        };
+        
+        await UserStorage.saveUser(userData);
+        
+        console.log('✅ Usuario guardado en Firestore');
+        
+        // Guardar preferencia de "recordarme"
+        if (rememberMe) {
+            localStorage.setItem('pool_remember_me', 'true');
+            authState.rememberMe = true;
+        }
+        
+        return {
+            success: true,
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            username: username
+        };
+        
+    } catch (error) {
+        console.error('❌ Error al registrar:', error.message);
+        
+        // Mensajes amigables para códigos de error específicos
+        let message = error.message;
+        if (error.code === 'auth/email-already-in-use') {
+            message = 'Este email ya está registrado';
+        } else if (error.code === 'auth/weak-password') {
+            message = 'Contraseña muy débil';
+        } else if (error.code === 'auth/invalid-email') {
+            message = 'Email inválido';
+        }
+        
+        throw new Error(message);
+    }
+}
+
+/**
+ * Inicia sesión con email y contraseña
+ * @param {string} email - Email del usuario
+ * @param {string} password - Contraseña
+ * @param {boolean} rememberMe - Si se debe mantener la sesión
+ * @returns {Promise<Object>} - Resultado del login
+ */
+async function signInWithEmailPassword(email, password, rememberMe = false) {
+    try {
+        console.log('🔓 Iniciando sesión:', email);
+        
+        if (!FIREBASE_ENABLED || !window.auth) {
+            throw new Error('Firebase no disponible');
+        }
+        
+        // Iniciar sesión
+        const userCredential = await window.auth.signInWithEmailAndPassword(email, password);
+        const firebaseUser = userCredential.user;
+        
+        console.log('✅ Sesión iniciada:', firebaseUser.email);
+        
+        // Guardar preferencia de "recordarme"
+        if (rememberMe) {
+            localStorage.setItem('pool_remember_me', 'true');
+            authState.rememberMe = true;
+        } else {
+            localStorage.removeItem('pool_remember_me');
+            authState.rememberMe = false;
+        }
+        
+        return {
+            success: true,
+            uid: firebaseUser.uid,
+            email: firebaseUser.email
+        };
+        
+    } catch (error) {
+        console.error('❌ Error al iniciar sesión:', error.message);
+        
+        let message = error.message;
+        if (error.code === 'auth/user-not-found') {
+            message = 'Email no registrado';
+        } else if (error.code === 'auth/wrong-password') {
+            message = 'Contraseña incorrecta';
+        } else if (error.code === 'auth/invalid-email') {
+            message = 'Email inválido';
+        } else if (error.code === 'auth/too-many-requests') {
+            message = 'Demasiados intentos. Intenta más tarde';
+        }
+        
+        throw new Error(message);
+    }
+}
+
+/* ============================================
+   LOGIN CON GOOGLE
+   ============================================ */
+
+/**
+ * Inicia sesión con Google
+ * @param {boolean} rememberMe - Si se debe mantener la sesión
+ * @returns {Promise<Object>} - Resultado del login
+ */
+async function signInWithGoogle(rememberMe = false) {
+    try {
+        console.log('🔵 Iniciando sesión con Google...');
+        
+        if (!FIREBASE_ENABLED || !window.auth) {
+            throw new Error('Firebase no disponible');
+        }
+        
+        const provider = new firebase.auth.GoogleAuthProvider();
+        provider.addScope('profile');
+        provider.addScope('email');
+        
+        // Mostrar popup de Google
+        const result = await window.auth.signInWithPopup(provider);
+        const firebaseUser = result.user;
+        
+        console.log('✅ Sesión con Google iniciada:', firebaseUser.email);
+        
+        // Verificar/crear perfil en Firestore
+        const userData = {
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            username: firebaseUser.displayName || firebaseUser.email.split('@')[0],
+            username_lower: (firebaseUser.displayName || firebaseUser.email.split('@')[0]).toLowerCase(),
+            photoURL: firebaseUser.photoURL,
+            createdAt: new Date().toISOString(),
+            authMethod: 'google'
+        };
+        
+        // Obtener usuario existente
+        try {
+            const existingUser = await UserStorage.getUser(firebaseUser.uid);
+            if (!existingUser) {
+                // Nuevo usuario, guardar
+                await UserStorage.saveUser(userData);
+                console.log('✅ Nuevo usuario Google guardado en Firestore');
+            }
+        } catch (e) {
+            console.warn('⚠️ No se pudo guardar usuario en Firestore:', e.message);
+        }
+        
+        // Guardar preferencia de "recordarme"
+        if (rememberMe) {
+            localStorage.setItem('pool_remember_me', 'true');
+            authState.rememberMe = true;
+        }
+        
+        return {
+            success: true,
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            displayName: firebaseUser.displayName
+        };
+        
+    } catch (error) {
+        console.error('❌ Error al iniciar con Google:', error);
+        
+        if (error.code === 'auth/popup-closed-by-user') {
+            throw new Error('Popup cerrado');
+        }
+        
+        throw new Error('Error al iniciar sesión con Google');
+    }
+}
+
+/* ============================================
+   LOGIN CON APPLE
+   ============================================ */
+
+/**
+ * Inicia sesión con Apple
+ * @param {boolean} rememberMe - Si se debe mantener la sesión
+ * @returns {Promise<Object>} - Resultado del login
+ */
+async function signInWithApple(rememberMe = false) {
+    try {
+        console.log('🍎 Iniciando sesión con Apple...');
+        
+        if (!FIREBASE_ENABLED || !window.auth) {
+            throw new Error('Firebase no disponible');
+        }
+        
+        const provider = new firebase.auth.OAuthProvider('apple.com');
+        provider.addScope('email');
+        provider.addScope('name');
+        
+        // Mostrar popup de Apple
+        const result = await window.auth.signInWithPopup(provider);
+        const firebaseUser = result.user;
+        
+        console.log('✅ Sesión con Apple iniciada:', firebaseUser.email);
+        
+        // Verificar/crear perfil en Firestore
+        const userData = {
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            username: firebaseUser.displayName || firebaseUser.email.split('@')[0],
+            username_lower: (firebaseUser.displayName || firebaseUser.email.split('@')[0]).toLowerCase(),
+            photoURL: firebaseUser.photoURL,
+            createdAt: new Date().toISOString(),
+            authMethod: 'apple'
+        };
+        
+        // Obtener usuario existente
+        try {
+            const existingUser = await UserStorage.getUser(firebaseUser.uid);
+            if (!existingUser) {
+                // Nuevo usuario, guardar
+                await UserStorage.saveUser(userData);
+                console.log('✅ Nuevo usuario Apple guardado en Firestore');
+            }
+        } catch (e) {
+            console.warn('⚠️ No se pudo guardar usuario en Firestore:', e.message);
+        }
+        
+        // Guardar preferencia de "recordarme"
+        if (rememberMe) {
+            localStorage.setItem('pool_remember_me', 'true');
+            authState.rememberMe = true;
+        }
+        
+        return {
+            success: true,
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            displayName: firebaseUser.displayName
+        };
+        
+    } catch (error) {
+        console.error('❌ Error al iniciar con Apple:', error);
+        
+        if (error.code === 'auth/popup-closed-by-user') {
+            throw new Error('Popup cerrado');
+        }
+        
+        throw new Error('Error al iniciar sesión con Apple');
+    }
+}
+
+/* ============================================
+   CIERRE DE SESIÓN
+   ============================================ */
+
+/**
+ * Cierra la sesión actual
+ * @returns {Promise<void>}
  */
 async function signOut() {
     try {
+        console.log('🚪 Cerrando sesión...');
+        
         if (FIREBASE_ENABLED && window.auth) {
             await window.auth.signOut();
+            
+            // Limpiar preferencias
+            localStorage.removeItem('pool_remember_me');
+            authState.rememberMe = false;
+            
             console.log('✅ Sesión cerrada');
             showNotification('Sesión cerrada', 'success');
         }
         
-        // Reiniciar app
-        setTimeout(() => restart(), 1500);
+        // Reiniciar app después de 1 segundo
+        setTimeout(() => restart(), 1000);
         
     } catch (error) {
         console.error('❌ Error al cerrar sesión:', error);
+        showNotification('Error al cerrar sesión', 'danger');
     }
 }
 
-/**
- * Muestra el botón de Google Sign-In
- */
-function showGoogleSignInButton() {
-    const btn = document.getElementById('googleSignInBtn');
-    if (btn) {
-        btn.style.display = 'block';
-    }
-}
+/* ============================================
+   FUNCIONES DE PERFIL
+   ============================================ */
 
 /**
- * Oculta el botón de Google Sign-In
+ * Carga el perfil completo del usuario desde Firebase
+ * @param {string} uid - UID del usuario (opcional, usa el actual si no se proporciona)
  */
-function hideGoogleSignInButton() {
-    const btn = document.getElementById('googleSignInBtn');
-    if (btn) {
-        btn.style.display = 'none';
-    }
-}
-
-/**
- * Carga el perfil del usuario desde Firebase
- */
-async function loadUserProfileFromFirebase() {
+async function loadUserProfileFromFirebase(uid = null) {
     try {
-        const userData = await UserStorage.getUser();
+        const userUid = uid || window.auth.currentUser?.uid;
+        if (!userUid) {
+            console.warn('⚠️ No hay usuario autenticado');
+            return;
+        }
+        
+        const userData = await UserStorage.getUser(userUid);
         if (userData) {
-            currentUser.nombre = userData.nombre || currentUser.nombre;
-            currentUser.telefono = userData.telefono || currentUser.telefono;
-            currentUser.foto = userData.foto || currentUser.foto;
-            currentUser.uid = userData.uid || authState.uid;
+            currentUser.nombre = userData.username || userData.displayName || 'Usuario';
+            currentUser.username = userData.username;
+            currentUser.email = userData.email;
+            currentUser.foto = userData.photoURL || null;
+            currentUser.uid = userUid;
             
             console.log('✅ Perfil cargado de Firebase');
             updateUserProfileHeader();
@@ -178,50 +525,60 @@ async function loadUserProfileFromFirebase() {
  */
 async function updateUserProfileInFirebase() {
     try {
-        if (FIREBASE_ENABLED && window.auth.currentUser) {
-            // Actualizar Firebase Auth
-            await window.auth.currentUser.updateProfile({
-                displayName: currentUser.nombre,
-                photoURL: currentUser.foto
-            });
-            
-            // Actualizar Firestore
-            await UserStorage.saveUser({
-                nombre: currentUser.nombre,
-                telefono: currentUser.telefono,
-                foto: currentUser.foto,
-                email: authState.email,
-                uid: authState.uid
-            });
-            
-            console.log('✅ Perfil actualizado en Firebase');
-            return true;
-        } else {
-            // Solo localStorage
-            console.log('📝 Perfil actualizado en localStorage');
-            await UserStorage.saveUser(currentUser);
-            return true;
+        const firebaseUser = window.auth.currentUser;
+        if (!firebaseUser) {
+            throw new Error('No hay usuario autenticado');
         }
+        
+        console.log('📝 Actualizando perfil...');
+        
+        // Actualizar Firebase Auth
+        await firebaseUser.updateProfile({
+            displayName: currentUser.nombre,
+            photoURL: currentUser.foto || null
+        });
+        
+        // Actualizar Firestore
+        const userData = {
+            username: currentUser.username || currentUser.nombre,
+            username_lower: (currentUser.username || currentUser.nombre).toLowerCase(),
+            email: firebaseUser.email,
+            uid: firebaseUser.uid,
+            photoURL: currentUser.foto || null
+        };
+        
+        await UserStorage.saveUser(userData);
+        
+        console.log('✅ Perfil actualizado en Firebase');
+        return true;
+        
     } catch (error) {
         console.error('❌ Error al actualizar perfil:', error);
         return false;
     }
 }
 
+/* ============================================
+   FUNCIONES DE UTILIDAD
+   ============================================ */
+
 /**
  * Verifica si el usuario está autenticado
+ * @returns {boolean}
  */
 function isUserAuthenticated() {
-    return authState.isAuthenticated;
+    return authState.isAuthenticated && authState.uid !== null;
 }
 
 /**
  * Obtiene el ID único del usuario
+ * @returns {string}
  */
 function getUserId() {
     if (FIREBASE_ENABLED && authState.uid) {
         return authState.uid;
     }
+    
     // Fallback: generar ID local
     let localId = localStorage.getItem('pool_user_id');
     if (!localId) {
@@ -231,5 +588,21 @@ function getUserId() {
     return localId;
 }
 
+/**
+ * Obtiene el username actual
+ * @returns {string}
+ */
+function getCurrentUsername() {
+    return authState.username || currentUser.nombre || 'Usuario';
+}
+
+/**
+ * Verifica si "recordarme" está activado
+ * @returns {boolean}
+ */
+function isRememberMeActive() {
+    return localStorage.getItem('pool_remember_me') === 'true';
+}
+
 // Log al cargar
-console.log('📦 firebase-auth-ui.js cargado - Autenticación lista');
+console.log('📦 firebase-auth-ui.js cargado - Sistema de autenticación SEGURO');
