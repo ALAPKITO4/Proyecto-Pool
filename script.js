@@ -1977,6 +1977,97 @@ function updatePoolStatus(poolId, newStatus) {
 }
 
 /**
+
+/**
+ * ✅ NUEVA FUNCIÓN: Sincronización en Tiempo Real de Pools
+ * 
+ * Crea un listener para actualizar el pool automáticamente cuando
+ * alguien acepte/rechace una invitación o realice cambios
+ * 
+ * @param {number} poolId - ID del pool a escuchar
+ */
+async function subscribeToPoolUpdates(poolId) {
+    try {
+        // Crear almacenamiento de unsubscribers si no existe
+        if (!window._poolUnsubscribers) {
+            window._poolUnsubscribers = {};
+        }
+
+        // Cancelar suscripción anterior si existe
+        if (window._poolUnsubscribers[poolId]) {
+            console.log('🧹 Cancelando listener anterior');
+            window._poolUnsubscribers[poolId]();
+        }
+
+        // No hacer nada si Firebase no está habilitado
+        if (!FIREBASE_ENABLED || !window.db) {
+            console.log('⚠️ Firebase no disponible, syncronización en tiempo real deshabilitada');
+            return;
+        }
+
+        console.log(`📡 Iniciando listener para pool ${poolId}`);
+
+        // Crear listener con onSnapshot
+        const poolRef = window.db.collection('pools').doc(String(poolId));
+        
+        const unsubscribe = poolRef.onSnapshot((doc) => {
+            if (doc.exists) {
+                const updatedEvent = doc.data();
+                console.log('🔄 ACTUALIZACIÓN EN TIEMPO REAL');
+                console.log('   Pool:', updatedEvent.location);
+                
+                // Actualizar en poolsEvents
+                const idx = poolsEvents.findIndex(e => e.id === poolId);
+                if (idx >= 0) {
+                    poolsEvents[idx] = updatedEvent;
+                    console.log('   ✅ Array local actualizado');
+                } else {
+                    poolsEvents.push(updatedEvent);
+                    console.log('   ➕ Pool agregado localmente');
+                }
+
+                // Guardar en localStorage
+                localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(poolsEvents));
+
+                // Mostrar resumen de participantes en consola
+                if (updatedEvent.participantes && updatedEvent.participantes.length > 0) {
+                    const aceptados = updatedEvent.participantes.filter(p => p.estado === 'aceptado').length;
+                    const pendientes = updatedEvent.participantes.filter(p => p.estado === 'pendiente').length;
+                    const rechazados = updatedEvent.participantes.filter(p => p.estado === 'rechazado').length;
+                    
+                    console.log('📊 ESTADO DE PARTICIPANTES:');
+                    console.log(`   ✅ Aceptados: ${aceptados}`);
+                    console.log(`   ⏳ Pendientes: ${pendientes}`);
+                    console.log(`   ❌ Rechazados: ${rechazados}`);
+                    
+                    updatedEvent.participantes.forEach(p => {
+                        const icon = p.estado === 'aceptado' ? '✅' : p.estado === 'rechazado' ? '❌' : '⏳';
+                        console.log(`   ${icon} ${p.nombre} - ${p.estado}`);
+                    });
+                }
+
+                // Actualizar UI si Step-11 está visible
+                if (getCurrentStep() === 11) {
+                    console.log('   🎨 Actualizando Step-11...');
+                    showPoolDetails(poolId);
+                }
+            } else {
+                console.error('❌ Pool no encontrado en Firestore');
+            }
+        }, (error) => {
+            console.error('❌ Error en listener:', error);
+        });
+
+        // Guardar referencia para poder cancelar después
+        window._poolUnsubscribers[poolId] = unsubscribe;
+        console.log(`✅ Listener activo para pool ${poolId}`);
+
+    } catch (error) {
+        console.error('❌ Error al crear listener:', error);
+    }
+}
+
+/**
  * Confirma la llegada al destino
  * @param {number} poolId - ID del pool
  */
@@ -2002,6 +2093,11 @@ function showPoolDetails(poolId) {
             goToStep(1);
             return;
         }
+
+        // 🔧 FIX: Activar sincronización en tiempo real
+        subscribeToPoolUpdates(poolId).catch(error => 
+            console.warn('⚠️ No se pudo activar sincronización:', error)
+        );
 
         const locationEl = document.getElementById('detailLocation');
         const dateEl = document.getElementById('detailDate');
@@ -2623,11 +2719,39 @@ function loadState() {
 /**
  * Carga los eventos guardados desde localStorage
  */
-function loadPoolsEvents() {
-    const saved = localStorage.getItem(STORAGE_KEY_EVENTS);
-    if (saved) {
-        poolsEvents = JSON.parse(saved);
-    } else {
+/**
+ * ✅ FIX: Carga pools desde Firestore primero, con fallback a localStorage
+ * Ahora es async para permitir esperar a Firestore
+ */
+async function loadPoolsEvents() {
+    try {
+        // 1. Intentar cargar de Firestore primero (si está habilitado)
+        if (FIREBASE_ENABLED && window.db && typeof PoolStorage !== 'undefined') {
+            try {
+                const firebasePools = await PoolStorage.getAllPools();
+                if (firebasePools && firebasePools.length > 0) {
+                    poolsEvents = firebasePools;
+                    console.log(`✅ Cargados ${firebasePools.length} pools de Firestore`);
+                    // Guardar también en localStorage como backup
+                    localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(poolsEvents));
+                    return;
+                }
+            } catch (e) {
+                console.warn('⚠️ Error cargando de Firestore, usando localStorage:', e.message);
+            }
+        }
+        
+        // 2. Fallback a localStorage
+        const saved = localStorage.getItem(STORAGE_KEY_EVENTS);
+        if (saved) {
+            poolsEvents = JSON.parse(saved);
+            console.log(`📝 Cargados ${poolsEvents.length} pools de localStorage`);
+        } else {
+            poolsEvents = [];
+            console.log('📭 No hay pools guardados');
+        }
+    } catch (e) {
+        console.error('❌ Error en loadPoolsEvents:', e);
         poolsEvents = [];
     }
 }

@@ -582,17 +582,17 @@
                 initializeAuth();
                 console.log('DEBUG: Auth inicializado');
                 
-// 3. Cargar datos locales (localStorage)
+                // 3. Cargar datos locales (localStorage)
                 loadUserProfile();
                 loadState();
                 await loadPoolsEvents();
                 console.log('DEBUG: Datos cargados');
 
-// 3.5 Suscribirse a cambios en tiempo real (si Firebase disponible)
+                // 3.5 Suscribirse a cambios en tiempo real (si Firebase disponible)
                 if (typeof subscribeToAllPools === 'function') {
                     window.poolsUnsubscribe = subscribeToAllPools((pools) => {
                         console.log('📡 Listener recibido:', pools.length, 'pools');
-                        //Combinar pools del listener con los existentes (no sobrescribir)
+                        // Combinar pools del listener con los existentes (no sobrescribir)
                         pools.forEach(p => {
                             const exists = poolsEvents.find(e => e.id === p.id);
                             if (!exists) {
@@ -600,13 +600,8 @@
                                 console.log('➕ Agregado pool:', p.id);
                             }
                         });
-                        //Guardar en localStorage
+                        // Guardar en localStorage
                         localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(poolsEvents));
-                        if (getCurrentStep() === 9) updatePoolsList();
-                    });
-                    console.log('📡 Sincronización en tiempo real activa');
-                }
-                        });
                         if (getCurrentStep() === 9) updatePoolsList();
                     });
                     console.log('📡 Sincronización en tiempo real activa');

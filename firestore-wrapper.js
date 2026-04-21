@@ -25,9 +25,9 @@ const PoolStorage = {
                     participantsUids: poolEvent.parents || [], // Para permisos Firestore
                     createdByUid: currentUser.uid || 'anonymous',
                     lastUpdated: new Date().toISOString()
-                });
+                }, { merge: true }); // ✅ FIX: merge: true para actualizar sin perder datos
                 
-                console.log('✅ Pool guardado en Firebase');
+                console.log('✅ Pool guardado en Firebase con { merge: true }');
                 
                 // TAMBIÉN guardar en localStorage como backup
                 let poolsEvents = JSON.parse(localStorage.getItem('pool_events') || '[]');
