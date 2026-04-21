@@ -3580,4 +3580,4 @@ function adminClearLocalStorage() {
 }
 
 // Exponer función para abrir admin
-window.showAdminPanel = showAdminPanel;
+// Función no expuesta públicamente - solo disponible en el código
