@@ -708,7 +708,10 @@ function updatePasswordStrength() {
  * @param {number} stepNumber - Número del paso a mostrar
  */
 function goToStep(stepNumber) {
+    console.log('🔀 goToStep() LLAMADO - destino:', stepNumber);
+    
     const current = getCurrentStep();
+    console.log('   Paso actual:', current);
     
     // Limpiar listener de tiempo real al salir del paso 9
     if (current === 9 && stepNumber !== 9 && typeof unsubscribeAllPools === 'function') {
@@ -720,12 +723,16 @@ function goToStep(stepNumber) {
     // Permitir navegación directa a pasos especiales sin validación
     // Step 0: crear usuario, Step 10: invitación, Step 11: detalles
     if (stepNumber === 0 || stepNumber === 10 || stepNumber === 11) {
-        // Navegación libre a estos pasos
+        console.log('   ✓ Navegación libre a paso especial');
     } else if (stepNumber > current && !validateCurrentStep()) {
+        console.log('   ❌ Validación falló, bloqueando navegación');
         return;
+    } else {
+        console.log('   ✓ Validación pasada');
     }
 
     // Ocultar todas las pantallas
+    console.log('   📝 Ocultando pantallas actuales...');
     const screens = document.querySelectorAll('.screen');
     screens.forEach(screen => {
         screen.classList.remove('active');
@@ -733,9 +740,15 @@ function goToStep(stepNumber) {
 
     // Mostrar la pantalla correspondiente
     const targetScreen = document.getElementById(`step-${stepNumber}`);
+    console.log('   🔍 Buscando pantalla target:', `step-${stepNumber}`, '- Existe:', !!targetScreen);
+    
     if (targetScreen) {
         targetScreen.classList.add('active');
+        console.log('   ✅ Pantalla activada');
         updateUI();
+        console.log('✅ goToStep() COMPLETADO - ahora en step:', stepNumber);
+    } else {
+        console.error('   ❌ ERROR: Pantalla step-' + stepNumber + ' no encontrada');
     }
 }
 
@@ -2221,93 +2234,6 @@ function copyInviteLink(poolId) {
  * @param {number} poolId - ID del pool a monitorear
  */
 /**
- * ✅ SINCRONIZACIÓN EN TIEMPO REAL (FIX: Issue #5)
- * 
- * Mejoras:
- * - Logs detallados de cambios detectados
- * - Manejo robusto de participantes
- * - Actualización inteligente de UI
- * - Sincronización bidireccional (Firebase ↔ localStorage)
- * 
- * 🔧 FIX: Ahora sincroniza cambios de participantes
- * @param {number} poolId - ID del pool a monitorear
- */
-function subscribeToPoolUpdates(poolId) {
-    if (!FIREBASE_ENABLED || !window.db) {
-        console.log('⚠️ Firebase no disponible para sincronización');
-        return;
-    }
-    
-    console.log('📡 INICIANDO SINCRONIZACIÓN EN TIEMPO REAL');
-    console.log('   Pool ID:', poolId);
-    
-    try {
-        const poolRef = firebase.firestore().collection('pools').doc(String(poolId));
-        
-        const unsubscribe = poolRef.onSnapshot((docSnapshot) => {
-            if (docSnapshot.exists) {
-                const updatedPool = docSnapshot.data();
-                console.log('🔄 CAMBIO DETECTADO EN FIRESTORE');
-                console.log('   Ubicación:', updatedPool.location);
-                console.log('   Última actualización:', new Date(updatedPool.lastUpdated).toLocaleTimeString());
-                
-                // 🔧 FIX: Mostrar cambios de participantes con detalles
-                if (updatedPool.participantes && updatedPool.participantes.length > 0) {
-                    console.log('👥 PARTICIPANTES ACTUALIZADOS:');
-                    updatedPool.participantes.forEach(p => {
-                        console.log(`   • ${p.nombre}: ${p.estado}${p.acceptedAt ? ` (confirmó a las ${new Date(p.acceptedAt).toLocaleTimeString()})` : ''}${p.rejectedAt ? ` (rechazó a las ${new Date(p.rejectedAt).toLocaleTimeString()})` : ''}`);
-                    });
-                } else {
-                    console.log('👥 Sin participantes registrados');
-                }
-                
-                // Actualizar en el array local (sincronización bidireccional)
-                const index = poolsEvents.findIndex(e => e.id == poolId);
-                if (index >= 0) {
-                    const oldPool = poolsEvents[index];
-                    poolsEvents[index] = { ...poolsEvents[index], ...updatedPool };
-                    localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(poolsEvents));
-                    
-                    console.log('✅ Datos sincronizados con localStorage');
-                    
-                    // Si estamos en Step-10 o Step-11, actualizar UI
-                    const currentStep = getCurrentStep();
-                    console.log('   Paso actual:', currentStep);
-                    
-                    if (currentStep === 10) {
-                        console.log('   ↻ Actualizando pantalla de invitación (Step-10)...');
-                        document.getElementById('invDateTime').textContent = 
-                            `${formatDate(updatedPool.date)} ${formatTime(updatedPool.startTime)} - ${formatTime(updatedPool.endTime)}`;
-                    } else if (currentStep === 11) {
-                        console.log('   ↻ Recargando detalles del pool (Step-11)...');
-                        showPoolDetails(poolId);
-                    } else if (currentStep === 9) {
-                        console.log('   ↻ Actualizando lista de pools (Step-9)...');
-                        updatePoolsList();
-                    }
-                } else {
-                    console.warn('⚠️ Pool local no encontrado, agregando nuevo...');
-                    poolsEvents.push(updatedPool);
-                    localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(poolsEvents));
-                }
-            } else {
-                console.log('⚠️ Pool no encontrado en Firestore');
-            }
-        }, (error) => {
-            console.error('❌ Error en suscripción de Firestore:', error);
-        });
-        
-        // Guardar unsubscribe para limpiar después
-        window._poolUnsubscribers = window._poolUnsubscribers || {};
-        window._poolUnsubscribers[poolId] = unsubscribe;
-        console.log('✅ Listener de Firestore activo para pool:', poolId);
-        
-    } catch (error) {
-        console.error('❌ Error suscribiéndose a Firestore:', error);
-    }
-}
-
-/**
  * Muestra resumen de estados de participantes
  * 🔧 FIX: Helper para mostrar progreso de aceptaciones
  * @param {number} poolId - ID del pool
@@ -2418,10 +2344,10 @@ async function subscribeToPoolUpdates(poolId) {
                     });
                 }
 
-                // Actualizar UI si Step-11 está visible
+                // 🔧 FIX: NO llamar a showPoolDetails() - eso causa re-renders infinitos
+                // Solo actualizar los datos locales, la UI ya mostrará los cambios
                 if (getCurrentStep() === 11) {
-                    console.log('   🎨 Actualizando Step-11...');
-                    showPoolDetails(poolId);
+                    console.log('   ✓ Datos actualizados (no requiere re-render de UI)');
                 }
             } else {
                 console.error('❌ Pool no encontrado en Firestore');
@@ -2587,38 +2513,27 @@ async function showPoolDetails(poolId) {
         
         // Limpiar botones anteriores
         actionButtonsEl.innerHTML = '';
-        
-        // Crear contenedor de botones
-        const buttonContainer = document.createElement('div');
-        buttonContainer.className = 'button-group';
-        buttonContainer.style.display = 'flex';
-        buttonContainer.style.gap = '12px';
-        buttonContainer.style.flexWrap = 'wrap';
 
         // BOTÓN: Unirse / Salir
         if (!isParticipant && event.estado !== 'cancelado') {
             const joinBtn = document.createElement('button');
             joinBtn.className = 'btn btn-primary';
             joinBtn.textContent = '✅ Unirse';
-            joinBtn.style.flex = '1';
-            joinBtn.style.minWidth = '100px';
             joinBtn.addEventListener('click', () => {
                 console.log('🔘 Click en Unirse - poolId:', poolId);
                 joinPool(poolId);
             });
-            buttonContainer.appendChild(joinBtn);
+            actionButtonsEl.appendChild(joinBtn);
             console.log('     ✓ Botón "Unirse" agregado');
         } else if (isParticipant && event.estado !== 'cancelado') {
             const leaveBtn = document.createElement('button');
             leaveBtn.className = 'btn btn-secondary';
             leaveBtn.textContent = '❌ Salir';
-            leaveBtn.style.flex = '1';
-            leaveBtn.style.minWidth = '100px';
             leaveBtn.addEventListener('click', () => {
                 console.log('🔘 Click en Salir - poolId:', poolId);
                 leavePool(poolId);
             });
-            buttonContainer.appendChild(leaveBtn);
+            actionButtonsEl.appendChild(leaveBtn);
             console.log('     ✓ Botón "Salir" agregado');
         }
 
@@ -2627,34 +2542,30 @@ async function showPoolDetails(poolId) {
             const confirmBtn = document.createElement('button');
             confirmBtn.className = 'btn btn-primary';
             confirmBtn.textContent = '✓ Confirmar';
-            confirmBtn.style.flex = '1';
-            confirmBtn.style.minWidth = '100px';
             confirmBtn.style.background = '#4CAF50';
             confirmBtn.addEventListener('click', () => {
                 console.log('🔘 Click en Confirmar - poolId:', poolId);
                 confirmPoolStatus(poolId, 'confirmado');
             });
-            buttonContainer.appendChild(confirmBtn);
+            actionButtonsEl.appendChild(confirmBtn);
             console.log('     ✓ Botón "Confirmar" agregado');
 
             const cancelBtn = document.createElement('button');
             cancelBtn.className = 'btn btn-danger';
             cancelBtn.textContent = '✕ Cancelar';
-            cancelBtn.style.flex = '1';
-            cancelBtn.style.minWidth = '100px';
             cancelBtn.addEventListener('click', () => {
                 console.log('🔘 Click en Cancelar - poolId:', poolId);
                 confirmPoolStatus(poolId, 'cancelado');
             });
-            buttonContainer.appendChild(cancelBtn);
+            actionButtonsEl.appendChild(cancelBtn);
             console.log('     ✓ Botón "Cancelar" agregado');
         }
 
-        // BOTONES: Compartir / Copiar Link
+        // BOTONES: Compartir / Copiar Link (en fila separada)
         const shareContainer = document.createElement('div');
         shareContainer.style.display = 'flex';
         shareContainer.style.gap = '8px';
-        shareContainer.style.marginTop = '12px';
+        shareContainer.style.marginTop = '8px';
         shareContainer.style.width = '100%';
 
         const shareBtn = document.createElement('button');
@@ -2683,10 +2594,8 @@ async function showPoolDetails(poolId) {
         shareContainer.appendChild(copyBtn);
         console.log('     ✓ Botón "Copiar Link" agregado');
 
-        buttonContainer.appendChild(shareContainer);
-        
-        // Agregar contenedor de botones al DOM
-        actionButtonsEl.appendChild(buttonContainer);
+        // Agregar share container al actionButtonsEl
+        actionButtonsEl.appendChild(shareContainer);
         console.log('   ✅ Todos los botones renderizados correctamente');
 
         // Mostrar participantes
