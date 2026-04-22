@@ -2454,19 +2454,30 @@ function confirmPoolArrival(poolId) {
 }
 
 /**
- * Muestra los detalles completos de un pool (Step-11)
+ * 🔧 FIX: Muestra los detalles completos de un pool (Step-11)
+ * ✅ VERSIÓN MEJORADA CON DEBUG Y VALIDACIÓN
+ * 
+ * Cambios:
+ * - Logs detallados para diagnosticar problemas
+ * - Validación correcta de elementos del DOM
+ * - Manejo robusto de event listeners
+ * - Prevención de errores silenciosos
+ * 
  * @param {number} poolId - ID del pool a mostrar
  */
 async function showPoolDetails(poolId) {
+    console.log('🔍 showPoolDetails() INICIADO - poolId:', poolId);
+    
     try {
         // 🔧 FIX: Primero cargar datos más recientes desde Firestore
         let event = poolsEvents.find(e => e.id === poolId);
+        console.log('   📝 Pool encontrado en memoria:', !!event);
         
         if (FIREBASE_ENABLED && window.db) {
             try {
                 const freshEvent = await PoolStorage.getPoolById(poolId);
                 if (freshEvent) {
-                    console.log('📡 Cargando datos frescos desde Firestore para pool:', poolId);
+                    console.log('📡 Cargando datos frescos desde Firestore');
                     
                     // Actualizar en poolsEvents
                     const idx = poolsEvents.findIndex(e => e.id === poolId);
@@ -2487,16 +2498,20 @@ async function showPoolDetails(poolId) {
         }
         
         if (!event) {
+            console.error('❌ Pool NO encontrado');
             showNotification('⚠️ Pool no encontrado', 'warning');
             goToStep(1);
             return;
         }
+
+        console.log('   ✓ Pool válido:', event.location);
 
         // 🔧 FIX: Activar sincronización en tiempo real
         subscribeToPoolUpdates(poolId).catch(error => 
             console.warn('⚠️ No se pudo activar sincronización:', error)
         );
 
+        // 🔧 FIX: VALIDAR TODOS LOS ELEMENTOS DEL DOM ANTES DE USARLOS
         const locationEl = document.getElementById('detailLocation');
         const dateEl = document.getElementById('detailDate');
         const timesEl = document.getElementById('detailTimes');
@@ -2508,15 +2523,24 @@ async function showPoolDetails(poolId) {
         const currentUserRoleEl = document.getElementById('detailCurrentUserRole');
         const actionButtonsEl = document.getElementById('detailActionButtons');
 
-        if (!locationEl) return;
+        console.log('   🔎 Validando elementos del DOM:');
+        console.log('     - locationEl:', !!locationEl);
+        console.log('     - actionButtonsEl:', !!actionButtonsEl);
+        
+        if (!locationEl || !actionButtonsEl) {
+            console.error('❌ Elementos críticos del DOM no encontrados');
+            return;
+        }
 
         appState.poolId = poolId;
 
+        // Rellenar datos básicos
         locationEl.textContent = event.location || 'No especificado';
         dateEl.textContent = formatDate(event.date);
         timesEl.textContent = `${formatTime(event.startTime)} - ${formatTime(event.endTime)}`;
         rolesEl.textContent = `👉 ${event.driverParent} | 👈 ${event.returnParent}`;
 
+        // Mostrar niños
         childrenEl.innerHTML = '';
         (event.children || []).forEach(child => {
             const div = document.createElement('div');
@@ -2525,6 +2549,7 @@ async function showPoolDetails(poolId) {
             childrenEl.appendChild(div);
         });
 
+        // Mostrar padres
         parentsEl.innerHTML = '';
         (event.parents || []).forEach(parent => {
             const isCurrentUser = isNameMatch(parent, currentUser.nombre);
@@ -2534,6 +2559,7 @@ async function showPoolDetails(poolId) {
             parentsEl.appendChild(div);
         });
 
+        // Estado del pool
         let statusText = '⏳ Pendiente';
         let statusBg = 'linear-gradient(135deg, #FF9800 0%, #F57C00 100%)';
         if (event.estado === 'confirmado') {
@@ -2547,30 +2573,124 @@ async function showPoolDetails(poolId) {
         statusBanner.style.background = statusBg;
         statusBanner.style.color = 'white';
 
+        // 🔧 FIX: VERIFICAR ESTADO DEL USUARIO
         const isParticipant = isUserParticipant(poolId, currentUser.nombre);
         const isCreator = event.createdBy === currentUser.nombre || event.createdByUid === currentUser.uid;
+        
+        console.log('   👤 Estado del usuario:');
+        console.log('     - currentUser.nombre:', currentUser.nombre);
+        console.log('     - isParticipant:', isParticipant);
+        console.log('     - isCreator:', isCreator);
 
-        if (actionButtonsEl) {
-            let buttonsHTML = '';
-            if (!isParticipant && event.estado !== 'cancelado') {
-                buttonsHTML += `<button class="btn btn-primary" onclick="joinPool(${poolId})" style="flex:1;margin-right:8px;">✅ Unirse</button>`;
-            } else if (isParticipant && event.estado !== 'cancelado') {
-                buttonsHTML += `<button class="btn btn-secondary" onclick="leavePool(${poolId})" style="flex:1;margin-right:8px;">❌ Salir</button>`;
-            }
-            if (isCreator && event.estado === 'pendiente') {
-                buttonsHTML += `<button class="btn btn-primary" onclick="confirmPoolStatus(${poolId}, 'confirmado')" style="flex:1;margin-right:8px;background:#4CAF50;">✓ Confirmar</button>`;
-                buttonsHTML += `<button class="btn btn-danger" onclick="confirmPoolStatus(${poolId}, 'cancelado')" style="flex:1;">✕ Cancelar</button>`;
-            }
-            // 🔧 FIX: Agregar botones de compartir (nuevo)
-            buttonsHTML += `<div style="display: flex; gap: 8px; margin-top: 12px; width: 100%;">`;
-            buttonsHTML += `<button class="btn btn-outline" onclick="sharePoolFromDetails(${poolId})" style="flex:1; font-size: 12px; padding: 6px 10px;">📱 Compartir</button>`;
-            buttonsHTML += `<button class="btn btn-outline" onclick="copyInviteLink(${poolId})" style="flex:1; font-size: 12px; padding: 6px 10px;">📋 Copiar Link</button>`;
-            buttonsHTML += `</div>`;
-            actionButtonsEl.innerHTML = buttonsHTML;
+        // 🔧 FIX: RENDERIZAR BOTONES CON VALIDACIÓN Y DEBUG
+        console.log('   🔘 Renderizando botones de acción...');
+        
+        // Limpiar botones anteriores
+        actionButtonsEl.innerHTML = '';
+        
+        // Crear contenedor de botones
+        const buttonContainer = document.createElement('div');
+        buttonContainer.className = 'button-group';
+        buttonContainer.style.display = 'flex';
+        buttonContainer.style.gap = '12px';
+        buttonContainer.style.flexWrap = 'wrap';
+
+        // BOTÓN: Unirse / Salir
+        if (!isParticipant && event.estado !== 'cancelado') {
+            const joinBtn = document.createElement('button');
+            joinBtn.className = 'btn btn-primary';
+            joinBtn.textContent = '✅ Unirse';
+            joinBtn.style.flex = '1';
+            joinBtn.style.minWidth = '100px';
+            joinBtn.addEventListener('click', () => {
+                console.log('🔘 Click en Unirse - poolId:', poolId);
+                joinPool(poolId);
+            });
+            buttonContainer.appendChild(joinBtn);
+            console.log('     ✓ Botón "Unirse" agregado');
+        } else if (isParticipant && event.estado !== 'cancelado') {
+            const leaveBtn = document.createElement('button');
+            leaveBtn.className = 'btn btn-secondary';
+            leaveBtn.textContent = '❌ Salir';
+            leaveBtn.style.flex = '1';
+            leaveBtn.style.minWidth = '100px';
+            leaveBtn.addEventListener('click', () => {
+                console.log('🔘 Click en Salir - poolId:', poolId);
+                leavePool(poolId);
+            });
+            buttonContainer.appendChild(leaveBtn);
+            console.log('     ✓ Botón "Salir" agregado');
         }
 
+        // BOTONES: Confirmar / Cancelar (solo para creador)
+        if (isCreator && event.estado === 'pendiente') {
+            const confirmBtn = document.createElement('button');
+            confirmBtn.className = 'btn btn-primary';
+            confirmBtn.textContent = '✓ Confirmar';
+            confirmBtn.style.flex = '1';
+            confirmBtn.style.minWidth = '100px';
+            confirmBtn.style.background = '#4CAF50';
+            confirmBtn.addEventListener('click', () => {
+                console.log('🔘 Click en Confirmar - poolId:', poolId);
+                confirmPoolStatus(poolId, 'confirmado');
+            });
+            buttonContainer.appendChild(confirmBtn);
+            console.log('     ✓ Botón "Confirmar" agregado');
+
+            const cancelBtn = document.createElement('button');
+            cancelBtn.className = 'btn btn-danger';
+            cancelBtn.textContent = '✕ Cancelar';
+            cancelBtn.style.flex = '1';
+            cancelBtn.style.minWidth = '100px';
+            cancelBtn.addEventListener('click', () => {
+                console.log('🔘 Click en Cancelar - poolId:', poolId);
+                confirmPoolStatus(poolId, 'cancelado');
+            });
+            buttonContainer.appendChild(cancelBtn);
+            console.log('     ✓ Botón "Cancelar" agregado');
+        }
+
+        // BOTONES: Compartir / Copiar Link
+        const shareContainer = document.createElement('div');
+        shareContainer.style.display = 'flex';
+        shareContainer.style.gap = '8px';
+        shareContainer.style.marginTop = '12px';
+        shareContainer.style.width = '100%';
+
+        const shareBtn = document.createElement('button');
+        shareBtn.className = 'btn btn-outline';
+        shareBtn.textContent = '📱 Compartir';
+        shareBtn.style.flex = '1';
+        shareBtn.style.fontSize = '12px';
+        shareBtn.style.padding = '6px 10px';
+        shareBtn.addEventListener('click', () => {
+            console.log('🔘 Click en Compartir - poolId:', poolId);
+            sharePoolFromDetails(poolId);
+        });
+        shareContainer.appendChild(shareBtn);
+        console.log('     ✓ Botón "Compartir" agregado');
+
+        const copyBtn = document.createElement('button');
+        copyBtn.className = 'btn btn-outline';
+        copyBtn.textContent = '📋 Copiar Link';
+        copyBtn.style.flex = '1';
+        copyBtn.style.fontSize = '12px';
+        copyBtn.style.padding = '6px 10px';
+        copyBtn.addEventListener('click', () => {
+            console.log('🔘 Click en Copiar Link - poolId:', poolId);
+            copyInviteLink(poolId);
+        });
+        shareContainer.appendChild(copyBtn);
+        console.log('     ✓ Botón "Copiar Link" agregado');
+
+        buttonContainer.appendChild(shareContainer);
+        
+        // Agregar contenedor de botones al DOM
+        actionButtonsEl.appendChild(buttonContainer);
+        console.log('   ✅ Todos los botones renderizados correctamente');
+
+        // Mostrar participantes
         participantsList.innerHTML = '';
-        // 🔧 FIX: Usar participantes con estados en lugar de participants
         const participants = event.participantes || event.participants || [];
         if (participants.length > 0) {
             participants.forEach(p => {
@@ -2578,7 +2698,6 @@ async function showPoolDetails(poolId) {
                 const userTag = isCurrentUser ? '<span class="user-tag">(Tú)</span>' : '';
                 const phoneDisplay = p.telefono ? `<span style="font-size:11px;color:#999;">${p.telefono}</span>` : '';
                 
-                // 🔧 FIX: Mostrar estado del participante
                 let estadoBadge = '⏳ Pendiente';
                 let estadoColor = '#FF9800';
                 if (p.estado === 'aceptado') {
@@ -2608,6 +2727,7 @@ async function showPoolDetails(poolId) {
             participantsList.innerHTML = '<p style="color:#999;font-size:13px;text-align:center;">Aún nadie se ha unido</p>';
         }
 
+        // Rol del usuario en el pool
         let userRole = 'Participante';
         if (isNameMatch(event.driverParent, currentUser.nombre)) {
             userRole = '👉 LLEVA (ida)';
@@ -2620,13 +2740,15 @@ async function showPoolDetails(poolId) {
 
         renderMapEmbed(event.location, 'detailMapEmbed');
         
-        // 🔧 FIX: Mostrar resumen de estados de participantes
+        // Mostrar resumen de participantes
         showParticipantsSummary(poolId);
         
+        console.log('✅ showPoolDetails() COMPLETADO - Navegando a Step-11');
         goToStep(11);
         
     } catch (error) {
-        console.error('Error mostrando detalles:', error);
+        console.error('❌ ERROR en showPoolDetails:', error);
+        console.error('   Stack:', error.stack);
         showNotification('⚠️ Error al cargar detalles', 'warning');
         goToStep(1);
     }
