@@ -944,12 +944,14 @@ function updateParentsList() {
 
     appState.parents.forEach((parent, index) => {
         const isCurrentUser = isNameMatch(parent, currentUser.nombre);
-        const userTag = isCurrentUser ? ' <span class="user-tag">(Tú)</span>' : '';
+        const statusIcon = isCurrentUser ? '✅' : '⏳';
+        const statusClass = isCurrentUser ? 'status-aceptado' : 'status-pendiente';
+        const userTag = isCurrentUser ? ' (Tú)' : '';
         
         const tag = document.createElement('div');
-        tag.className = 'item-tag';
+        tag.className = `item-tag ${statusClass}`;
         tag.innerHTML = `
-            👤 ${parent}${userTag}
+            ${statusIcon} ${parent}${userTag}
             <button type="button" class="remove-btn" onclick="removeParent(${index})">✕</button>
         `;
         parentsList.appendChild(tag);
@@ -1211,8 +1213,10 @@ function confirmPool() {
     });
 
     // 🔧 FIX: Crear array de participantes con estados reales
+    // ✅ Solo confirma al creador (si su nombre coincide)
     const participantes = appState.parents.map(p => {
         const isCreator = isNameMatch(p, currentUser.nombre);
+        
         return {
             nombre: p,
             telefono: isCreator ? currentUser.telefono : '',
@@ -1240,7 +1244,7 @@ function confirmPool() {
         participantes: participantes,
         participantsUids: appState.parents.map(() => 'pending'),
         confirmations: confirmationMap,
-        estado: calculatePoolStatus(invitados),
+        estado: calculatePoolStatus(participantes),
         invitados: invitados,
         ubicacionActual: 'pendiente',
         whatsappLink: generatePoolLink(poolId),
@@ -1438,16 +1442,23 @@ async function updatePoolsList() {
 
     noMessage.style.display = 'none';
 
-    // Agrupar por fecha
+    // 📋 ORDENAR POOLS: Más nuevos primero (por createdAt)
+    const sortedPools = [...poolsEvents].sort((a, b) => {
+        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return dateB - dateA; // Descendente: más nuevo primero
+    });
+
+    // Agrupar por fecha del evento
     const eventsByDate = {};
-    poolsEvents.forEach(event => {
+    sortedPools.forEach(event => {
         if (!eventsByDate[event.date]) {
             eventsByDate[event.date] = [];
         }
         eventsByDate[event.date].push(event);
     });
 
-    // Ordenar fechas
+    // Ordenar fechas (más reciente primero)
     const sortedDates = Object.keys(eventsByDate).sort().reverse();
 
     // Mostrar eventos
@@ -1505,12 +1516,18 @@ async function updatePoolsList() {
                 statusText = '❌ Rechazado';
             }
 
-            card.innerHTML = `
+card.innerHTML = `
                 <div class="pool-event-header">
                     <div class="pool-event-date">📅 ${formattedDate}</div>
                     <span class="pool-status-badge ${statusBadgeClass}">${statusText}</span>
                 </div>
-
+                
+                ${event.creatorName || event.createdBy ? `
+                    <div class="pool-event-creator" style="font-size: 11px; color: #666; margin-bottom: 8px;">
+                        👑 Creado por: <strong>${event.creatorName || event.createdBy}</strong>
+                    </div>
+                ` : ''}
+ 
                 <div class="pool-event-info">
                     <div class="pool-event-info-item">
                         <span class="pool-event-info-label">👦 Niños:</span>
@@ -1575,51 +1592,68 @@ async function updatePoolsList() {
  * 
  * Cambios:
  * - Ahora es async
- * - Verifica que sea el creador (opcional)
+ * - Verifica que sea el creador (opcional con forceDelete)
  * - Elimina de Firestore
  * - Elimina de localStorage
  * - Actualiza poolsEvents
  * - Refresca UI
  * - Sincroniza cambios
+ * - Comparación flexible de IDs (string vs number)
  * 
- * @param {number} eventId - ID del evento a eliminar
+ * @param {number|string} eventId - ID del evento a eliminar
+ * @param {boolean} forceDelete - Si es true, no verifica creador (para editar)
  */
-async function deletePoolEvent(eventId) {
+async function deletePoolEvent(eventId, forceDelete = false) {
     try {
-        // Buscar el evento
-        const event = poolsEvents.find(e => e.id === eventId);
+        // Normalizar ID a número para comparación consistente
+        const normalizedEventId = Number(eventId);
+        console.log('🗑️ deletePoolEvent() INICIADO');
+        console.log('   eventId original:', eventId, 'tipo:', typeof eventId);
+        console.log('   eventId normalizado:', normalizedEventId);
+
+        // Buscar el evento con comparación flexible
+        const event = poolsEvents.find(e => Number(e.id) === normalizedEventId);
         if (!event) {
-            console.error('❌ Pool no encontrado:', eventId);
+            console.error('❌ Pool no encontrado:', normalizedEventId);
+            console.log('   Pools disponibles:', poolsEvents.map(e => e.id));
             showNotification('⚠️ Pool no encontrado', 'warning');
-            return;
+            return false;
         }
 
-        // Verificar permisos: solo el creador puede borrar el pool completo
-        const isCreator = isNameMatch(event.createdBy, currentUser.nombre) || event.createdByUid === currentUser.uid;
-        
-        if (!hasUserProfile()) {
-            console.warn('⚠️ Usuario sin perfil completo');
-            showNotification('⚠️ Debes crear tu perfil primero', 'warning');
-            goToStep(0);
-            return;
-        }
-        
-        if (!isCreator) {
-            console.warn('⚠️ Solo el creador puede eliminar el pool');
-            showNotification('⚠️ Solo el creador puede eliminar este pool', 'warning');
-            return;
-        }
-
-        // Pedir confirmación
-        if (!confirm(`🗑️ ¿Estás seguro de que deseas eliminar "${event.location}"?\n\nEsta acción no se puede deshacer.`)) {
-            console.log('❌ Eliminación cancelada por el usuario');
-            return;
-        }
-
-        console.log('🗑️ INICIANDO ELIMINACIÓN DEL POOL');
-        console.log('   ID:', eventId);
-        console.log('   Ubicación:', event.location);
+        console.log('🗑️ Pool encontrado');
+        console.log('   Pool:', event.location);
         console.log('   Creador:', event.createdBy);
+        console.log('   currentUser:', currentUser.nombre);
+        console.log('   forceDelete:', forceDelete);
+
+        // Si no es forzado, verificar permisos
+        if (!forceDelete) {
+            // Verificar permisos: solo el creador puede borrar el pool completo
+            const isCreator = isNameMatch(event.createdBy, currentUser.nombre) || event.createdByUid === currentUser.uid;
+            
+            console.log('   ¿Es creador?:', isCreator);
+            
+            if (!hasUserProfile()) {
+                console.warn('⚠️ Usuario sin perfil completo');
+                showNotification('⚠️ Debes crear tu perfil primero', 'warning');
+                goToStep(0);
+                return false;
+            }
+            
+            if (!isCreator) {
+                console.warn('⚠️ Solo el creador puede eliminar el pool');
+                showNotification('⚠️ Solo el creador puede eliminar este pool', 'warning');
+                return false;
+            }
+
+            // Pedir confirmación solo si no es forzado
+            if (!confirm(`🗑️ ¿Estás seguro de que deseas eliminar "${event.location}"?\n\nEsta acción no se puede deshacer.`)) {
+                console.log('❌ Eliminación cancelada por el usuario');
+                return false;
+            }
+        }
+
+        console.log('🗑️ CONTINUANDO CON ELIMINACIÓN...');
 
         // ===== PASO 1: Eliminar de Firestore (la fuente de verdad) =====
         let deletedFromFirestore = false;
@@ -1627,7 +1661,7 @@ async function deletePoolEvent(eventId) {
         if (FIREBASE_ENABLED && window.db && typeof PoolStorage !== 'undefined') {
             try {
                 console.log('   📡 Eliminando de Firestore...');
-                deletedFromFirestore = await PoolStorage.deletePool(eventId);
+                deletedFromFirestore = await PoolStorage.deletePool(normalizedEventId);
                 
                 if (deletedFromFirestore) {
                     console.log('   ✅ Firestore: Eliminación EXITOSA');
@@ -1638,20 +1672,19 @@ async function deletePoolEvent(eventId) {
             } catch (error) {
                 console.error('   ❌ ERROR al eliminar de Firestore:', error.message);
                 showNotification(`❌ Error: No se pudo eliminar de Firestore: ${error.message}`, 'danger');
-                return; // DETENER si falla la eliminación en Firestore
+                return false;
             }
         } else {
             console.log('   ⚠️ Firebase no disponible, continuando solo con localStorage');
-            deletedFromFirestore = true; // Asumir éxito si no hay Firebase
+            deletedFromFirestore = true;
         }
 
         // ===== PASO 2: Solo si fue exitoso en Firestore, actualizar local =====
         if (deletedFromFirestore) {
             console.log('   📝 Limpiando estado local...');
             
-            // Guardar antes y después para auditoría
             const beforeCount = poolsEvents.length;
-            poolsEvents = poolsEvents.filter(e => e.id !== eventId);
+            poolsEvents = poolsEvents.filter(e => Number(e.id) !== normalizedEventId);
             const afterCount = poolsEvents.length;
             
             console.log(`   ✅ Array poolsEvents actualizado (${beforeCount} → ${afterCount})`);
@@ -1666,7 +1699,6 @@ async function deletePoolEvent(eventId) {
             try {
                 await updatePoolsList().catch(error => {
                     console.warn('   ⚠️ Error actualizando lista:', error.message);
-                    // Igual mostrar mensaje de éxito porque la eliminación fue exitosa
                 });
                 console.log('   ✅ UI actualizada');
             } catch (uiError) {
@@ -1678,41 +1710,62 @@ async function deletePoolEvent(eventId) {
             console.log('✅ ELIMINACIÓN COMPLETADA CON ÉXITO');
 
             // ===== PASO 5: Si estamos en el detalle del pool eliminado, volver atrás =====
-            if (getCurrentStep() === 11 && appState.poolId === eventId) {
+            if (getCurrentStep() === 11 && appState.poolId === normalizedEventId) {
                 console.log('   📱 Volviendo a mis pools...');
                 goToStep(9);
             }
+
+            return true;
         }
+
+        return false;
 
     } catch (error) {
         console.error('❌ Error no manejado en deletePoolEvent:', error);
         showNotification('❌ Error inesperado al eliminar pool', 'danger');
+        return false;
     }
 }
 
 /**
  * Edita un evento (abre el flujo de creación con los datos del evento)
- * @param {number} eventId - ID del evento a editar
+ * @param {number|string} eventId - ID del evento a editar
  */
-function editPoolEvent(eventId) {
-    const event = poolsEvents.find(e => e.id === eventId);
-    if (event) {
-        // Cargar datos del evento en el estado
-        appState.children = [...event.children];
-        appState.parents = [...event.parents];
-        appState.driverParent = event.driverParent;
-        appState.returnParent = event.returnParent;
-        appState.location = event.location;
-        appState.date = event.date;
-        appState.startTime = event.startTime;
-        appState.endTime = event.endTime;
-
-        // Eliminar el evento actual para no duplicarlo
-        deletePoolEvent(eventId);
-
-        // Ir al paso 2
-        goToStep(2);
+async function editPoolEvent(eventId) {
+    // Normalizar ID para comparación consistente
+    const normalizedEventId = Number(eventId);
+    
+    // Buscar el evento con comparación flexible
+    const event = poolsEvents.find(e => Number(e.id) === normalizedEventId);
+    if (!event) {
+        console.error('❌ Pool no encontrado al editar:', normalizedEventId);
+        showNotification('⚠️ Pool no encontrado', 'warning');
+        return;
     }
+    
+    // Cargar datos del evento en el estado
+    appState.children = [...event.children];
+    appState.parents = [...event.parents];
+    appState.driverParent = event.driverParent;
+    appState.returnParent = event.returnParent;
+    appState.location = event.location;
+    appState.date = event.date;
+    appState.startTime = event.startTime;
+    appState.endTime = event.endTime;
+
+    // ⭐ IMPORTANTE: Usar await y forceDelete para editar sin confirmación
+    await deletePoolEvent(normalizedEventId, true);
+
+    // Verificar que el pool fue eliminado exitosamente
+    const stillExists = poolsEvents.find(e => Number(e.id) === normalizedEventId);
+    if (stillExists) {
+        console.warn('⚠️ No se pudo editar: el pool no fue eliminado');
+        showNotification('⚠️ No tienes permisos para editar este pool', 'warning');
+        return;
+    }
+
+// Ir al paso 2
+    goToStep(2);
 }
 
 /* ============================================
@@ -2518,8 +2571,17 @@ async function showPoolDetails(poolId) {
             return;
         }
 
-        appState.poolId = poolId;
-
+appState.poolId = poolId;
+        
+        // 🆕 Información del creador
+        const createdBy = event.creatorName || event.createdBy || 'Desconocido';
+        const isCreatorYou = isNameMatch(createdBy, currentUser.nombre);
+        const creatorTag = isCreatorYou ? ' (Tú)' : '';
+        const createdByEl = document.getElementById('detailCreatedBy');
+        if (createdByEl) {
+            createdByEl.textContent = createdBy + creatorTag;
+        }
+        
         // Rellenar datos básicos
         locationEl.textContent = event.location || 'No especificado';
         dateEl.textContent = formatDate(event.date);
@@ -3564,13 +3626,23 @@ async function showAdminPanel() {
  * Interfaz del panel de admin
  */
 function showAdminPanelUI() {
+    // Verificar que no exista ya el modal
+    const existingModal = document.getElementById('adminModal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
     const adminHTML = `
         <div id="adminModal" class="edit-profile-modal" onclick="closeAdminModal(event)">
             <div class="edit-profile-content" style="max-width: 500px;">
                 <h2>🔐 Panel de Administrador</h2>
-                <p style="color: #666; font-size: 12px; margin-bottom: 20px;">
-                    Este panel permite administrar los pools del sistema.
-                </p>
+                
+                <div id="adminStats" style="background: #f5f5f5; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                    <p style="margin: 0 0 10px 0; font-weight: 600;">📊 Estadísticas</p>
+                    <div id="adminStatsContent">
+                        <p style="margin: 0; color: #666;">Cargando estadísticas...</p>
+                    </div>
+                </div>
                 
                 <div style="margin-bottom: 20px;">
                     <button class="btn btn-danger" onclick="adminClearAllPools()" style="width: 100%; padding: 15px;">
@@ -3598,6 +3670,49 @@ function showAdminPanelUI() {
     `;
     
     document.body.insertAdjacentHTML('beforeend', adminHTML);
+    
+    // Cargar estadísticas
+    loadAdminStats();
+}
+
+/**
+ * Carga estadísticas para el panel admin
+ */
+async function loadAdminStats() {
+    const statsContent = document.getElementById('adminStatsContent');
+    if (!statsContent) return;
+    
+    let html = '';
+    let localCount = 0;
+    let firestoreCount = 0;
+    
+    // Contar de localStorage
+    try {
+        const localPools = JSON.parse(localStorage.getItem('pool_events') || '[]');
+        localCount = localPools.length;
+    } catch (e) {
+        localCount = 0;
+    }
+    
+    html += `<p style="margin: 0 0 5px 0;">💾 LocalStorage: <strong>${localCount}</strong> pools</p>`;
+    
+    // Contar de Firestore
+    if (FIREBASE_ENABLED && window.db) {
+        try {
+            const snapshot = await window.db.collection('pools').get();
+            firestoreCount = snapshot.size;
+            html += `<p style="margin: 0 0 5px 0;">🔥 Firestore: <strong>${firestoreCount}</strong> pools</p>`;
+            html += `<p style="margin: 0; color: #4CAF50;">✅ Firebase conectado</p>`;
+        } catch (e) {
+            html += `<p style="margin: 0; color: #FF6B35;">⚠️ Error al conectar Firebase</p>`;
+        }
+    } else {
+        html += `<p style="margin: 0; color: #999;">🔥 Firebase no disponible</p>`;
+    }
+    
+    html += `<p style="margin: 10px 0 0 0; font-size: 12px; color: #666;">👤 Usuario: ${currentUser.nombre || 'Sin perfil'}</p>`;
+    
+    statsContent.innerHTML = html;
 }
 
 /**
@@ -3672,3 +3787,44 @@ function adminClearLocalStorage() {
 
 // Exponer función para abrir admin
 window.showAdminPanel = showAdminPanel;
+window.showAdminPanelUI = showAdminPanelUI;
+
+// Atajo de teclado: Ctrl+Shift+A para abrir admin
+document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey && e.shiftKey && e.key === 'A') {
+        e.preventDefault();
+        showAdminPanelUI();
+    }
+});
+
+// Exponer función para eliminar todos los pools de Firebase
+window.deleteAllFirestorePools = async function() {
+    if (!FIREBASE_ENABLED || !window.db) {
+        console.error('Firebase no disponible');
+        return { success: false, error: 'Firebase no disponible' };
+    }
+    
+    try {
+        console.log('🗑️ Eliminando TODOS los pools de Firestore...');
+        const snapshot = await window.db.collection('pools').get();
+        const count = snapshot.size;
+        
+        if (count === 0) {
+            console.log('ℹ️ No hay pools en Firestore');
+            return { success: true, count: 0 };
+        }
+        
+        const batch = window.db.batch();
+        snapshot.forEach(doc => {
+            batch.delete(doc.ref);
+        });
+        
+        await batch.commit();
+        console.log(`✅ Eliminados ${count} pools de Firestore`);
+        
+        return { success: true, count };
+    } catch (error) {
+        console.error('❌ Error:', error);
+        return { success: false, error: error.message };
+    }
+};
