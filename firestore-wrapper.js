@@ -18,6 +18,12 @@ const PoolStorage = {
      */
     async savePool(poolEvent) {
         try {
+            // 📋 ASEGURAR createdAt: Si no existe, asignar uno nuevo
+            if (!poolEvent.createdAt) {
+                poolEvent.createdAt = new Date().toISOString();
+                console.log('📋 Assigned createdAt:', poolEvent.createdAt);
+            }
+            
             // Opción 1: Si Firebase está habilitado, guardar en Firestore
             if (FIREBASE_ENABLED && window.db) {
                 const docRef = await window.db.collection('pools').doc(String(poolEvent.id)).set({
