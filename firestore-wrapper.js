@@ -86,12 +86,27 @@ const PoolStorage = {
                     pools.push(doc.data());
                 });
                 
-                console.log(`✅ Cargados ${pools.length} pools de Firebase`);
+                // 📋 ORDENAR POOLS: Más nuevas arriba (createdAt DESC)
+                pools.sort((a, b) => {
+                    const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                    const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                    return dateB - dateA; // Descendente: más nueva primero
+                });
+                
+                console.log(`✅ Cargados ${pools.length} pools de Firebase (ordenados por fecha)`);
                 return pools;
             } else {
                 // Opción 2: localStorage
                 const pools = JSON.parse(localStorage.getItem('pool_events') || '[]');
-                console.log(`📝 Cargados ${pools.length} pools de localStorage`);
+                
+                // 📋 ORDENAR POOLS: Más nuevas arriba (createdAt DESC)
+                pools.sort((a, b) => {
+                    const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                    const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                    return dateB - dateA;
+                });
+                
+                console.log(`📝 Cargados ${pools.length} pools de localStorage (ordenados por fecha)`);
                 return pools;
             }
             
@@ -291,7 +306,15 @@ function subscribeToAllPools(callback) {
                     snapshot.forEach(doc => {
                         pools.push({ id: doc.id, ...doc.data() });
                     });
-                    console.log(`📡 ${pools.length} pools en tiempo real`);
+                    
+                    // 📋 ORDENAR POOLS: Más nuevas arriba (createdAt DESC)
+                    pools.sort((a, b) => {
+                        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                        return dateB - dateA;
+                    });
+                    
+                    console.log(`📡 ${pools.length} pools en tiempo real (ordenados)`);
                     callback(pools);
                 }, error => {
                     console.error('Error en listener global:', error);
