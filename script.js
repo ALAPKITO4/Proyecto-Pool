@@ -1402,6 +1402,7 @@ function updateSuccessScreen() {
 /**
  * Actualiza la pantalla de eventos guardados
  * FASE 2: Ahora carga desde Firestore primero, con fallback a localStorage
+ * 🔒 FILTRO: Solo muestra pools donde el usuario aparece
  */
 async function updatePoolsList() {
     // FASE 2: Cargar pools desde Firestore si está disponible
@@ -1422,6 +1423,37 @@ async function updatePoolsList() {
     } else {
         console.log('📝 Usando pools de localStorage (Firebase no disponible)');
     }
+    
+    // 🔒 FILTRO: Filtrar pools donde el usuario aparece (como creador o participante)
+    const userName = currentUser.nombre;
+    const userUid = currentUser.uid;
+    const originalCount = poolsEvents.length;
+    
+    poolsEvents = poolsEvents.filter(event => {
+        // Verificar si el usuario es el creador
+        if (isNameMatch(event.createdBy, userName) || event.createdByUid === userUid) {
+            return true;
+        }
+        
+        // Verificar si el usuario aparece en los padres
+        if (event.parents && event.parents.some(p => isNameMatch(p, userName))) {
+            return true;
+        }
+        
+        // Verificar si el usuario aparece en participantes
+        if (event.participantes && event.participantes.some(p => isNameMatch(p.nombre, userName))) {
+            return true;
+        }
+        
+        // Verificar si el usuario está en invitados
+        if (event.invitados && event.invitados.some(i => isNameMatch(i.nombre, userName))) {
+            return true;
+        }
+        
+        return false;
+    });
+    
+    console.log(`🔒 Filtrado: ${originalCount} → ${poolsEvents.length} pools (usuario: ${userName})`);
     
     // 🔧 FIX: Validar que elementos existan (pueden no existir si no estamos en Step-9)
     const poolsList = document.getElementById('poolsList');
