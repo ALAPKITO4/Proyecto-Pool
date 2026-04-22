@@ -543,8 +543,9 @@ async function loadUserProfileFromFirebase(uid = null) {
         
         const userData = await UserStorage.getUser(userUid);
         if (userData) {
-            currentUser.nombre = userData.username || userData.displayName || 'Usuario';
+            currentUser.nombre = userData.nombre || userData.username || userData.displayName || 'Usuario';
             currentUser.username = userData.username;
+            currentUser.telefono = userData.telefono || '';
             currentUser.email = userData.email;
             currentUser.foto = userData.photoURL || null;
             currentUser.uid = userUid;
@@ -579,6 +580,8 @@ async function updateUserProfileInFirebase() {
         const userData = {
             username: currentUser.username || currentUser.nombre,
             username_lower: (currentUser.username || currentUser.nombre).toLowerCase(),
+            nombre: currentUser.nombre,
+            telefono: currentUser.telefono || '',
             email: firebaseUser.email,
             uid: firebaseUser.uid,
             photoURL: currentUser.foto || null

@@ -240,8 +240,14 @@ function createUserProfile() {
     // Guardar en localStorage
     localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(currentUser));
     
-    // Sincronizar con Firebase si está disponible
-    updateUserProfileInFirebase().catch(e => console.error(e));
+    // ⭐ IMPORTANTE: Guardar en Firebase usando UserStorage
+    if (typeof UserStorage !== 'undefined') {
+        UserStorage.saveUser(currentUser).then(() => {
+            console.log('✅ Perfil guardado en Firebase');
+        }).catch(e => {
+            console.error('❌ Error al guardar en Firebase:', e);
+        });
+    }
 
     // Limpiar error
     errorDiv.style.display = 'none';
@@ -356,8 +362,14 @@ function saveEditedProfile() {
     // Guardar en localStorage
     localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(currentUser));
     
-    // ⭐ NUEVO: Sincronizar con Firebase
-    updateUserProfileInFirebase().catch(e => console.error(e));
+    // ⭐ IMPORTANTE: Guardar en Firebase usando UserStorage
+    if (typeof UserStorage !== 'undefined') {
+        UserStorage.saveUser(currentUser).then(() => {
+            console.log('✅ Perfil guardado en Firebase');
+        }).catch(e => {
+            console.error('❌ Error al guardar en Firebase:', e);
+        });
+    }
 
     // Cerrar modal
     closeEditProfileModal();
