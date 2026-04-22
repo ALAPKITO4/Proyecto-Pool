@@ -1946,6 +1946,30 @@ async function acceptPoolInvitation() {
     console.log('   ID:', event.id);
     console.log('   Creado por:', event.createdBy);
     console.log('   Participantes actuales:', event.participantes ? event.participantes.length : 0);
+    console.log('   Invitados:', event.invitados ? event.invitados.length : 0);
+    
+    // 📋 VALIDAR INVITACIÓN: Verificar si el usuario está invitado
+    // Backward compat: si no hay invitados, permitir acceso (pools antiguas)
+    const hasInvitadosList = event.invitados && event.invitados.length > 0;
+    const userNameNormalized = currentUser.nombre.toLowerCase().trim();
+    const isInvited = hasInvitadosList ? event.invitados.some(inv => 
+        inv.nombre.toLowerCase().trim() === userNameNormalized ||
+        inv.telefono === currentUser.telefono
+    ) : true; // Si no hay lista de invitados, permitir ( backward compat)
+    
+    console.log('📋 Verificación de invitación:');
+    console.log('   ¿Tiene lista invitados?:', hasInvitadosList);
+    console.log('   Usuario:', currentUser.nombre);
+    console.log('   Teléfono:', currentUser.telefono);
+    console.log('   ¿Está invitado?:', isInvited);
+    
+    if (!isInvited) {
+        console.error('❌ Usuario NO está invitado a esta pool');
+        showNotification('⚠️ No estás invitado a esta pool', 'error');
+        return;
+    }
+    
+    console.log('✅ Usuario verificado como invitados, continuando...');
 
     // Buscar o crear el participante
     const participant = findOrCreateParticipant(
@@ -2104,6 +2128,30 @@ async function rejectPoolInvitation() {
     console.log('   ID:', event.id);
     console.log('   Creado por:', event.createdBy);
     console.log('   Participantes actuales:', event.participantes ? event.participantes.length : 0);
+    console.log('   Invitados:', event.invitados ? event.invitados.length : 0);
+    
+    // 📋 VALIDAR INVITACIÓN: Verificar si el usuario está invitado
+    // Backward compat: si no hay invitados, permitir acceso (pools antiguas)
+    const hasInvitadosList = event.invitados && event.invitados.length > 0;
+    const userNameNormalized = currentUser.nombre.toLowerCase().trim();
+    const isInvited = hasInvitadosList ? event.invitados.some(inv => 
+        inv.nombre.toLowerCase().trim() === userNameNormalized ||
+        inv.telefono === currentUser.telefono
+    ) : true; // Si no hay lista de invitados, permitir ( backward compat)
+    
+    console.log('📋 Verificación de invitación:');
+    console.log('   ¿Tiene lista invitados?:', hasInvitadosList);
+    console.log('   Usuario:', currentUser.nombre);
+    console.log('   Teléfono:', currentUser.telefono);
+    console.log('   ¿Está invitado?:', isInvited);
+    
+    if (!isInvited) {
+        console.error('❌ Usuario NO está invitado a esta pool');
+        showNotification('⚠️ No estás invitado a esta pool', 'error');
+        return;
+    }
+    
+    console.log('✅ Usuario verificado como invitado, continuando...');
 
     // Buscar o crear el participante
     const participant = findOrCreateParticipant(
