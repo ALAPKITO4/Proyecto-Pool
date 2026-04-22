@@ -1425,23 +1425,11 @@ async function updatePoolsList() {
 
     noMessage.style.display = 'none';
 
-    // Agrupar por fecha
-    const eventsByDate = {};
+    // Ya tenemos poolsEvents ordenado por createdAt (newest first)
+    // Solo mostrar en ese orden sin agrupar por fecha
     poolsEvents.forEach(event => {
-        if (!eventsByDate[event.date]) {
-            eventsByDate[event.date] = [];
-        }
-        eventsByDate[event.date].push(event);
-    });
-
-    // Ordenar fechas
-    const sortedDates = Object.keys(eventsByDate).sort().reverse();
-
-    // Mostrar eventos
-    sortedDates.forEach(date => {
-        eventsByDate[date].forEach(event => {
-            const card = document.createElement('div');
-            card.className = 'pool-event-card';
+        const card = document.createElement('div');
+        card.className = 'pool-event-card';
             
             const startTime = formatTime(event.startTime);
             const endTime = formatTime(event.endTime);
@@ -3150,6 +3138,17 @@ async function loadPoolsEvents() {
                 if (firebasePools && firebasePools.length > 0) {
                     poolsEvents = firebasePools;
                     console.log(`✅ Cargados ${firebasePools.length} pools de Firestore`);
+                    
+                    // Ordenar por createdAt (newest first)
+                    poolsEvents.sort((a, b) => {
+                        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                        if (dateA === 0 && dateB === 0) return 0;
+                        if (dateA === 0) return 1;
+                        if (dateB === 0) return -1;
+                        return dateB - dateA;
+                    });
+                    
                     // Guardar también en localStorage como backup
                     localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(poolsEvents));
                     return;
@@ -3164,6 +3163,16 @@ async function loadPoolsEvents() {
         if (saved) {
             poolsEvents = JSON.parse(saved);
             console.log(`📝 Cargados ${poolsEvents.length} pools de localStorage`);
+            
+            // Ordenar por createdAt (newest first)
+            poolsEvents.sort((a, b) => {
+                const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                if (dateA === 0 && dateB === 0) return 0;
+                if (dateA === 0) return 1;
+                if (dateB === 0) return -1;
+                return dateB - dateA;
+            });
         } else {
             poolsEvents = [];
             console.log('📭 No hay pools guardados');
@@ -3326,6 +3335,16 @@ async function loadUserAcceptedPools() {
                 }
             });
             console.log(`   📡 +${firebasePools.length} pools desde Firestore`);
+            
+            // Ordenar por createdAt (newest first)
+            poolsEvents.sort((a, b) => {
+                const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+                const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+                if (dateA === 0 && dateB === 0) return 0;
+                if (dateA === 0) return 1;
+                if (dateB === 0) return -1;
+                return dateB - dateA;
+            });
         } catch(err) {
             console.warn('   ⚠️ Error cargando desde Firestore:', err);
         }
