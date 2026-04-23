@@ -4,6 +4,16 @@
     box-sizing: border-box;
 }
 
+/* IMPORTANTE: Bloquear autocomplete del navegador para inputs de niños y padres */
+input[type="text"]#childInput,
+input[type="text"]#parentInput {
+    -webkit-autocomplete: no-fill;
+    -webkit-appearance: none;
+    autocomplete: new-password;
+    speak: never;
+    background: transparent;
+}
+
 :root {
     --primary-color: #FF6B35;
     --primary-dark: #D85030;

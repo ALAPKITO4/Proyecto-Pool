@@ -405,7 +405,8 @@ function updateUserProfileHeader() {
     const photoEl = document.getElementById('headerProfilePhoto');
     const logoutBtn = document.getElementById('logoutBtn');
 
-    if (nameEl) nameEl.textContent = currentUser.nombre || 'Usuario';
+    // IMPORTANTE: NO asignar valores por defecto. El usuario DEBE elegir su nombre manualmente.
+    if (nameEl) nameEl.textContent = currentUser.nombre || 'Sin nombre';
     if (phoneEl) phoneEl.textContent = currentUser.telefono || '-';
 
     if (photoEl) {
@@ -444,12 +445,19 @@ function loadUserProfile() {
  * Ahora es compatible con:
  * - Usuario autenticado con Firebase (nuevo)
  * - Usuario con perfil manual (antiguo, para compatibilidad)
+ * IMPORTANTE: Ahora verifica username obligatorio
  * @returns {boolean} - True si tiene perfil, false si debe autenticarse
  */
 function hasUserProfile() {
     // Nuevo sistema: Usuario autenticado con Firebase
     if (isUserAuthenticated()) {
-        return true;
+        // IMPORTANTE: Verificar que tiene username válido
+        // El usuario DEBE tener username para poder usar la app
+        if (currentUser.username || currentUser.nombre) {
+            return true;
+        }
+        // Si está autenticado pero no tiene username, debe completar perfil
+        return false;
     }
     
     // Sistema antiguo: verificar si tiene nombre y teléfono
@@ -532,9 +540,10 @@ async function performEmailLogin() {
         // Ejecutar login
         const result = await signInWithEmailPassword(email, password, rememberMe);
         
-        if (result.success) {
-            showNotification(`✅ ¡Bienvenido, ${result.email}!`, 'success');
-            // El onAuthStateChanged de initializeAuth() se encargará de navegar a Step-1
+if (result.success) {
+            // IMPORTANTE: No mostrar nombre automático. El usuario debe elegir su username.
+            showNotification('🔵 Conectando con Google...', 'info');
+            // El onAuthStateChanged se encarga de mostrar la pantalla de elección si es necesario
         }
         
     } catch (error) {
@@ -575,6 +584,18 @@ async function performEmailRegister() {
             return;
         }
         
+        if (username.length > 20) {
+            errorDiv.textContent = '❌ Username máximo 20 caracteres';
+            errorDiv.style.display = 'block';
+            return;
+        }
+        
+        if (!/^[a-zA-Z0-9]+$/.test(username)) {
+            errorDiv.textContent = '❌ Solo letras y números';
+            errorDiv.style.display = 'block';
+            return;
+        }
+        
         if (password.length < 8) {
             errorDiv.textContent = '❌ Contraseña debe tener al menos 8 caracteres';
             errorDiv.style.display = 'block';
@@ -588,9 +609,10 @@ async function performEmailRegister() {
         // Ejecutar registro
         const result = await signUpWithEmailPassword(email, username, password, false);
         
-        if (result.success) {
-            showNotification(`✅ ¡Cuenta creada! Bienvenido, ${result.username}`, 'success');
-            // El onAuthStateChanged de initializeAuth() se encargará de navegar a Step-1
+if (result.success) {
+            // IMPORTANTE: No mostrar nombre automático. El usuario debe elegir su username.
+            showNotification('🍎 Conectando con Apple...', 'info');
+            // El onAuthStateChanged se encarga de mostrar la pantalla de elección si es necesario
         }
         
     } catch (error) {
@@ -800,6 +822,14 @@ function addChild() {
         return;
     }
 
+    // IMPORTANTE: Verificar que el nombre fue escrito por el usuario
+    // NO aceptar nombres del autocomplete automáticamente
+    const userWritten = input.getAttribute('data-user-input') || '';
+    if (!userWritten || (userWritten !== name && !userWritten.includes(name))) {
+        showError('Por favor escribí el nombre manualmente');
+        return;
+    }
+
     if (name.length < 2) {
         showError('El nombre debe tener al menos 2 caracteres');
         return;
@@ -835,6 +865,66 @@ function handleEnterChild(event) {
     if (event.key === 'Enter') {
         addChild();
     }
+}
+
+/**
+ * Bloquea el autocomplete del navegador para que NO sugiera contactos
+ * IMPORTANTE: Esto evita que aparezcan nombres de contactos guardados
+ */
+function blockAutocomplete(input) {
+    // Si hay un valor que el usuario NO escribió, limpiarlo
+    const userValue = input.getAttribute('data-user-input') || '';
+    
+    // Si el valor actual es diferente a lo que el usuario escribió manualmente,
+    // significa que el navegador autocompletó - rechazar
+    if (input.value && input.value !== userValue) {
+        input.value = userValue; // Restaurar solo lo que el usuario escribió
+        return;
+    }
+    
+    // Guardar lo que el usuario realmente escribe
+    input.setAttribute('data-user-input', input.value);
+}
+
+// Aplicar protección a los inputs al cargar la página
+function protectInputsFromAutocomplete() {
+    const inputs = ['childInput', 'parentInput'];
+    inputs.forEach(id => {
+        const input = document.getElementById(id);
+        if (input) {
+            // Limpiar al focuses para detectar autocomplete
+            input.addEventListener('focus', function() {
+                this.setAttribute('data-original-value', this.value);
+            });
+            
+            // Si el valor cambia al失去 focus, verificar si es autocompletado
+            input.addEventListener('blur', function() {
+                const original = this.getAttribute('data-original-value') || '';
+                if (this.value && this.value !== original && this.value !== this.getAttribute('data-user-input')) {
+                    // Parece autocompletado - limpiar
+                    this.value = '';
+                    console.log('🛡️ Autocompletado bloqueado');
+                }
+            });
+            
+            // Mutation observer para detectar cambios automáticos
+            let ignoreOnce = false;
+            const observer = new MutationObserver(() => {
+                if (!ignoreOnce && input.value) {
+                    const userInput = input.getAttribute('data-user-input') || '';
+                    if (input.value !== userInput && input.value.trim() !== userInput.trim()) {
+                        input.value = userInput;
+                        console.log('🛡️ Autocompletado detectado y bloqueado:', input.value);
+                    }
+                }
+                ignoreOnce = false;
+            });
+            
+            if (input.value) {
+                input.setAttribute('data-user-input', input.value);
+            }
+        }
+    });
 }
 
 /**
@@ -880,6 +970,14 @@ function addParent() {
     // Validaciones
     if (!name) {
         showError('El nombre no puede estar vacío');
+        return;
+    }
+
+    // IMPORTANTE: Verificar que el nombre fue escrito por el usuario
+    // NO aceptar nombres del autocomplete automáticamente
+    const userWritten = input.getAttribute('data-user-input') || '';
+    if (!userWritten || (userWritten !== name && !userWritten.includes(name))) {
+        showError('Por favor escribí el nombre manualmente');
         return;
     }
 
@@ -3063,9 +3161,10 @@ async function checkForSharedPool() {
 
 /**
  * Reinicia la aplicación al estado inicial
+ * IMPORTANTE: Siempre limpia todos los datos, sin valores automáticos
  */
 function restart() {
-    // Limpiar estado
+    // Limpiar estado completamente (vacío, sin datos automáticos)
     appState.children = [];
     appState.parents = [];
     appState.driverParent = '';
@@ -3078,14 +3177,22 @@ function restart() {
     appState.estado = 'pendiente';
 
     // Limpiar inputs
-    document.getElementById('childInput').value = '';
-    document.getElementById('parentInput').value = '';
-    document.getElementById('locationInput').value = '';
-    document.getElementById('driverSelect').value = '';
-    document.getElementById('returnSelect').value = '';
-    document.getElementById('dateInput').value = '';
-    document.getElementById('startTime').value = '';
-    document.getElementById('endTime').value = '';
+    const childInput = document.getElementById('childInput');
+    if (childInput) childInput.value = '';
+    const parentInput = document.getElementById('parentInput');
+    if (parentInput) parentInput.value = '';
+    const locationInput = document.getElementById('locationInput');
+    if (locationInput) locationInput.value = '';
+    const driverSelect = document.getElementById('driverSelect');
+    if (driverSelect) driverSelect.value = '';
+    const returnSelect = document.getElementById('returnSelect');
+    if (returnSelect) returnSelect.value = '';
+    const dateInput = document.getElementById('dateInput');
+    if (dateInput) dateInput.value = '';
+    const startTimeEl = document.getElementById('startTime');
+    if (startTimeEl) startTimeEl.value = '';
+    const endTimeEl = document.getElementById('endTime');
+    if (endTimeEl) endTimeEl.value = '';
     
     // Limpiar mensajes de error
     const errorMsg = document.getElementById('dateTimeError');
@@ -3103,13 +3210,24 @@ function restart() {
    ============================================ */
 
 /**
- * Valida el paso actual antes de continuar
+ * Valida los campos del paso actual
  * @returns {boolean} - True si es válido, false en caso contrario
  */
 function validateCurrentStep() {
     const step = getCurrentStep();
 
     switch (step) {
+        case 1:
+            // IMPORTANTE: Verificar que tiene username obligatorio
+            if (isUserAuthenticated()) {
+                // Debe tener username para usar la app
+                if (!currentUser.username && !currentUser.nombre) {
+                    showError('Debes elegir tu nombre de usuario');
+                    return false;
+                }
+            }
+            return true;
+
         case 2:
             if (appState.children.length === 0) {
                 showError('Debes agregar al menos un niño');
@@ -3352,6 +3470,28 @@ async function loadPoolsEvents() {
    ============================================ */
 
 /**
+ * Limpia el estado de la app (sin datos automáticos)
+ */
+function clearAppState() {
+    appState.children = [];
+    appState.parents = [];
+    appState.driverParent = '';
+    appState.returnParent = '';
+    appState.location = '';
+    appState.date = '';
+    appState.startTime = '';
+    appState.endTime = '';
+    appState.poolId = null;
+    appState.estado = 'pendiente';
+    
+    // Limpiar localStorage también
+    localStorage.removeItem(STORAGE_KEY_STATE);
+    localStorage.removeItem(STORAGE_KEY_EVENTS);
+    
+    console.log('🧹 Estado limpiar');  
+}
+
+/**
  * Inicializa la aplicación
  */
 async function initApp() {
@@ -3359,6 +3499,9 @@ async function initApp() {
     console.log('🔥 Esperando Firebase Auth...');
     
     try {
+        // 0. LIMPIAR CUALQUIER ESTADO ANTIGUO con datos automáticos
+        clearAppState();
+        
         // 1. Inicializar Firebase
         initializeFirebase();
         
@@ -3423,6 +3566,9 @@ function setupEventListeners() {
     if (dateInput) dateInput.addEventListener('change', validateDateTime);
     if (startTime) startTime.addEventListener('change', validateDateTime);
     if (endTime) endTime.addEventListener('change', validateDateTime);
+    
+    // PROTEGER inputs del autocomplete del navegador (contacts)
+    protectInputsFromAutocomplete();
 }
 
 // Ejecutar cuando el DOM esté listo

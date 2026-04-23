@@ -58,16 +58,23 @@ function initializeAuth() {
                 authState.photoURL = firebaseUser.photoURL;
                 
                 // Obtener username desde Firestore
+                let firebaseUsername = null;
                 try {
                     const userDoc = await UserStorage.getUser(firebaseUser.uid);
                     if (userDoc) {
-                        authState.username = userDoc.username || firebaseUser.displayName || 'Usuario';
-                    } else {
-                        authState.username = firebaseUser.displayName || 'Usuario';
+                        firebaseUsername = userDoc.username || null;
                     }
                 } catch (e) {
                     console.warn('⚠️ No se pudo obtener username:', e.message);
-                    authState.username = firebaseUser.displayName || 'Usuario';
+                }
+                
+                authState.username = firebaseUsername;
+                
+                // SI NO TIENE USERNAME EN FIRESTORE, mostrar pantalla de elección obligatoria
+                if (!firebaseUsername && !authState.username) {
+                    console.log('⚠️ Usuario SIN username - mostrando pantalla de elección');
+                    showUsernameSetupScreen(firebaseUser);
+                    return;
                 }
                 
                 // Sincronizar con currentUser
@@ -148,8 +155,15 @@ function syncCurrentUserWithAuth() {
     if (currentUser) {
         currentUser.uid = authState.uid;
         currentUser.email = authState.email;
-        currentUser.nombre = authState.displayName || authState.username || 'Usuario';
-        currentUser.username = authState.username;
+        // IMPORTANTE: NO asignar valores por defecto. El usuario DEBE elegir su nombre manualmente.
+        if (authState.username) {
+            currentUser.nombre = authState.username;
+            currentUser.username = authState.username;
+        } else {
+            // Si no tiene username, dejar vacío para forzar elección
+            currentUser.nombre = '';
+            currentUser.username = '';
+        }
         if (authState.photoURL) {
             currentUser.foto = authState.photoURL;
         }
@@ -372,27 +386,42 @@ async function signInWithGoogle(rememberMe = false) {
         
         console.log('✅ Sesión con Google iniciada:', firebaseUser.email);
         
-        // Verificar/crear perfil en Firestore
-        const userData = {
-            uid: firebaseUser.uid,
-            email: firebaseUser.email,
-            username: firebaseUser.displayName || firebaseUser.email.split('@')[0],
-            username_lower: (firebaseUser.displayName || firebaseUser.email.split('@')[0]).toLowerCase(),
-            photoURL: firebaseUser.photoURL,
-            createdAt: new Date().toISOString(),
-            authMethod: 'google'
-        };
-        
         // Obtener usuario existente
+        let existingUser = null;
         try {
-            const existingUser = await UserStorage.getUser(firebaseUser.uid);
-            if (!existingUser) {
-                // Nuevo usuario, guardar
-                await UserStorage.saveUser(userData);
-                console.log('✅ Nuevo usuario Google guardado en Firestore');
-            }
+            existingUser = await UserStorage.getUser(firebaseUser.uid);
         } catch (e) {
-            console.warn('⚠️ No se pudo guardar usuario en Firestore:', e.message);
+            console.warn('⚠️ Error al verificar usuario existente:', e.message);
+        }
+        
+        // IMPORTANTE: No asignar automáticamente. Usar displayName SOLO como sugerencia.
+        // Si no existe en Firestore, mostrar pantalla de elección de username
+        if (!existingUser) {
+            // Guardar datos básicos temporalmente mientras elige username
+            const tempUserData = {
+                uid: firebaseUser.uid,
+                email: firebaseUser.email,
+                // NO asignar username automáticamente - seará elegido por el usuario
+                username: null,
+                username_lower: null,
+                photoURL: firebaseUser.photoURL,
+                createdAt: new Date().toISOString(),
+                authMethod: 'google',
+                // Guardar suggestedName vacío - el usuario debe elegir su nombre manualmente
+                suggestedName: ''
+            };
+            
+            // Guardar en ses storage para recuperación
+            sessionStorage.setItem('pool_pending_user', JSON.stringify(tempUserData));
+            
+            console.log('✅ Nuevo usuario Google - requiriendo elección de username');
+            return {
+                success: true,
+                uid: firebaseUser.uid,
+                email: firebaseUser.email,
+                displayName: firebaseUser.displayName,
+                needsUsername: true
+            };
         }
         
         // Guardar preferencia de "recordarme"
@@ -446,27 +475,37 @@ async function signInWithApple(rememberMe = false) {
         
         console.log('✅ Sesión con Apple iniciada:', firebaseUser.email);
         
-        // Verificar/crear perfil en Firestore
-        const userData = {
-            uid: firebaseUser.uid,
-            email: firebaseUser.email,
-            username: firebaseUser.displayName || firebaseUser.email.split('@')[0],
-            username_lower: (firebaseUser.displayName || firebaseUser.email.split('@')[0]).toLowerCase(),
-            photoURL: firebaseUser.photoURL,
-            createdAt: new Date().toISOString(),
-            authMethod: 'apple'
-        };
-        
         // Obtener usuario existente
+        let existingUser = null;
         try {
-            const existingUser = await UserStorage.getUser(firebaseUser.uid);
-            if (!existingUser) {
-                // Nuevo usuario, guardar
-                await UserStorage.saveUser(userData);
-                console.log('✅ Nuevo usuario Apple guardado en Firestore');
-            }
+            existingUser = await UserStorage.getUser(firebaseUser.uid);
         } catch (e) {
-            console.warn('⚠️ No se pudo guardar usuario en Firestore:', e.message);
+            console.warn('⚠️ Error al verificar usuario existente:', e.message);
+        }
+        
+        if (!existingUser) {
+            // Guardar datos básicos temporalmente mientras elige username
+            const tempUserData = {
+                uid: firebaseUser.uid,
+                email: firebaseUser.email,
+                username: null,
+                username_lower: null,
+                photoURL: firebaseUser.photoURL,
+                createdAt: new Date().toISOString(),
+                authMethod: 'apple',
+                suggestedName: firebaseUser.displayName || firebaseUser.email.split('@')[0]
+            };
+            
+            sessionStorage.setItem('pool_pending_user', JSON.stringify(tempUserData));
+            
+            console.log('✅ Nuevo usuario Apple - requiriendo elección de username');
+            return {
+                success: true,
+                uid: firebaseUser.uid,
+                email: firebaseUser.email,
+                displayName: firebaseUser.displayName,
+                needsUsername: true
+            };
         }
         
         // Guardar preferencia de "recordarme"
@@ -543,8 +582,9 @@ async function loadUserProfileFromFirebase(uid = null) {
         
         const userData = await UserStorage.getUser(userUid);
         if (userData) {
-            currentUser.nombre = userData.nombre || userData.username || userData.displayName || 'Usuario';
-            currentUser.username = userData.username;
+            // IMPORTANTE: NO asignar valores por defecto. El usuario DEBE elegir su nombre manualmente.
+            currentUser.nombre = userData.username || userData.nombre || '';
+            currentUser.username = userData.username || '';
             currentUser.telefono = userData.telefono || '';
             currentUser.email = userData.email;
             currentUser.foto = userData.photoURL || null;
@@ -633,7 +673,7 @@ function getUserId() {
  * @returns {string}
  */
 function getCurrentUsername() {
-    return authState.username || currentUser.nombre || 'Usuario';
+    return authState.username || currentUser.username || '';
 }
 
 /**
@@ -642,6 +682,239 @@ function getCurrentUsername() {
  */
 function isRememberMeActive() {
     return localStorage.getItem('pool_remember_me') === 'true';
+}
+
+/* ============================================
+   PANTALLA DE ELECCIÓN DE USERNAME
+   ============================================ */
+
+/**
+ * Muestra la pantalla obligatoria para elegir username
+ * Se muestra cuando el usuario no tiene username en Firestore
+ * @param {object} firebaseUser - Usuario de Firebase
+ */
+async function showUsernameSetupScreen(firebaseUser) {
+    // Obtener sugerencia de nombre si existe
+    let suggestedName = '';
+    try {
+        const pendingData = sessionStorage.getItem('pool_pending_user');
+        if (pendingData) {
+            const parsed = JSON.parse(pendingData);
+            suggestedName = parsed.suggestedName || '';
+        }
+    } catch (e) {
+        console.warn('⚠️ Error al obtener sugerencia:', e.message);
+    }
+    
+    // Crear HTML de la pantalla de elección
+    const screenHTML = `
+        <div id="username-setup-screen" class="screen active" style="display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; box-sizing: border-box; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+            <div style="background: white; border-radius: 20px; padding: 30px; width: 100%; max-width: 400px; box-shadow: 0 10px 40px rgba(0,0,0,0.2);">
+                <h2 style="text-align: center; margin: 0 0 20px 0; color: #333;">👤 Elige tu nombre de usuario</h2>
+                
+                <p style="text-align: center; color: #666; margin-bottom: 20px;">
+                    Este nombre será visible para otros usuarios. Debe ser único.
+                </p>
+                
+                <div class="input-group-vertical" style="margin-bottom: 15px;">
+                    <label for="username-setup-input">📝 Nombre de usuario:</label>
+                    <input type="text" id="username-setup-input" class="input" 
+                           placeholder="Ej: Juan2024" 
+                           maxlength="20"
+                           value="${suggestedName || ''}"
+                           style="width: 100%;">
+                    <div id="username-setup-status" style="font-size: 12px; margin-top: 5px;"></div>
+                </div>
+                
+                <p style="font-size: 12px; color: #999; text-align: center;">
+                    Mínimo 3 caracteres, máximo 20<br>
+                    Solo letras y números
+                </p>
+                
+                <div id="username-setup-error" style="color: #FF6B35; font-size: 14px; text-align: center; margin-top: 10px; display: none;"></div>
+                
+                <button class="btn btn-primary" onclick="validateAndSaveUsername()" style="width: 100%; margin-top: 20px;">
+                    Continuar
+                </button>
+            </div>
+        </div>
+    `;
+    
+    // Ocultar todas las pantallas actuales
+    document.querySelectorAll('.screen').forEach(s => {
+        s.classList.remove('active');
+        s.style.display = 'none';
+    });
+    
+    // Insertar la nueva pantalla
+    let setupScreen = document.getElementById('username-setup-screen');
+    if (!setupScreen) {
+        document.body.insertAdjacentHTML('beforeend', screenHTML);
+        setupScreen = document.getElementById('username-setup-screen');
+    }
+    
+    setupScreen.classList.add('active');
+    setupScreen.style.display = 'flex';
+    
+    // Agregar event listener para validaci��n en tiempo real
+    const input = document.getElementById('username-setup-input');
+    input.addEventListener('input', debounce(checkUsernameSetupAvailability, 500));
+    input.focus();
+}
+
+/**
+ * Valida el username en tiempo real en la pantalla de setup
+ */
+async function checkUsernameSetupAvailability() {
+    const input = document.getElementById('username-setup-input');
+    const statusDiv = document.getElementById('username-setup-status');
+    const username = input.value.trim();
+    
+    if (username.length < 3) {
+        statusDiv.innerHTML = '<span style="color: #FF9800;">Mínimo 3 caracteres</span>';
+        statusDiv.style.display = 'block';
+        return;
+    }
+    
+    if (username.length > 20) {
+        statusDiv.innerHTML = '<span style="color: #FF9800;">Máximo 20 caracteres</span>';
+        statusDiv.style.display = 'block';
+        return;
+    }
+    
+    if (!/^[a-zA-Z0-9]+$/.test(username)) {
+        statusDiv.innerHTML = '<span style="color: #FF6B35;">Solo letras y números</span>';
+        statusDiv.style.display = 'block';
+        return;
+    }
+    
+    statusDiv.innerHTML = '<span style="color: #FF9800;">🔄 Verificando...</span>';
+    statusDiv.style.display = 'block';
+    
+    try {
+        const available = await isUsernameAvailable(username);
+        if (available) {
+            statusDiv.innerHTML = '<span style="color: #4CAF50;">✅ Disponible</span>';
+        } else {
+            statusDiv.innerHTML = '<span style="color: #FF6B35;">❌ Ya en uso</span>';
+        }
+    } catch (e) {
+        statusDiv.innerHTML = '<span style="color: #FF9800;">⚠️ Error al verificar</span>';
+    }
+}
+
+/**
+ * Valida y guarda el username seleccionado
+ */
+async function validateAndSaveUsername() {
+    const input = document.getElementById('username-setup-input');
+    const errorDiv = document.getElementById('username-setup-error');
+    const statusDiv = document.getElementById('username-setup-status');
+    const username = input.value.trim();
+    
+    errorDiv.style.display = 'none';
+    
+    // Validación: mínimo 3 caracteres
+    if (username.length < 3) {
+        errorDiv.textContent = '❌ Mínimo 3 caracteres';
+        errorDiv.style.display = 'block';
+        return;
+    }
+    
+    // Validación: máximo 20 caracteres
+    if (username.length > 20) {
+        errorDiv.textContent = '❌ Máximo 20 caracteres';
+        errorDiv.style.display = 'block';
+        return;
+    }
+    
+    // Validación: solo letras y números
+    if (!/^[a-zA-Z0-9]+$/.test(username)) {
+        errorDiv.textContent = '❌ Solo letras y números';
+        errorDiv.style.display = 'block';
+        return;
+    }
+    
+    // Verificar unicidad
+    try {
+        const available = await isUsernameAvailable(username);
+        if (!available) {
+            errorDiv.textContent = '❌ Este nombre ya está en uso';
+            errorDiv.style.display = 'block';
+            return;
+        }
+    } catch (e) {
+        console.warn('⚠️ Error al verificar unicidad:', e.message);
+    }
+    
+    // Obtener datos pendientes del usuario
+    let pendingData = null;
+    try {
+        const pendingStr = sessionStorage.getItem('pool_pending_user');
+        if (pendingStr) {
+            pendingData = JSON.parse(pendingStr);
+        }
+    } catch (e) {
+        console.warn('⚠️ Error al obtener datos pendientes:', e.message);
+    }
+    
+    // Obtener usuario actual de Firebase
+    const firebaseUser = window.auth.currentUser;
+    if (!firebaseUser) {
+        errorDiv.textContent = '❌ Error de autenticación';
+        errorDiv.style.display = 'block';
+        return;
+    }
+    
+    // Guardar username en Firestore
+    try {
+        const userData = {
+            uid: firebaseUser.uid,
+            email: firebaseUser.email,
+            username: username,
+            username_lower: username.toLowerCase(),
+            photoURL: firebaseUser.photoURL || null,
+            createdAt: pendingData?.createdAt || new Date().toISOString(),
+            authMethod: pendingData?.authMethod || 'google'
+        };
+        
+        await UserStorage.saveUser(userData);
+        
+        // Actualizar estado
+        authState.username = username;
+        currentUser.username = username;
+        currentUser.nombre = username;
+        
+        // Limpiar datos temporales
+        sessionStorage.removeItem('pool_pending_user');
+        
+        console.log('✅ Username guardado:', username);
+        
+        showNotification('✅ ¡Bienvenido, ' + username + '!', 'success');
+        
+        // Navegar a Step-1
+        goToStep(1);
+        
+    } catch (e) {
+        errorDiv.textContent = '❌ Error al guardar: ' + e.message;
+        errorDiv.style.display = 'block';
+        console.error('❌ Error al guardar username:', e);
+    }
+}
+
+/**
+ * Función utilitaria para debounce
+ */
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
 }
 
 // Log al cargar
