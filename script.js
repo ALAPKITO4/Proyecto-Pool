@@ -3860,3 +3860,23 @@ window.deleteAllFirestorePools = async function() {
         return { success: false, error: error.message };
     }
 };
+
+/* ============================================
+   SERVICE WORKER - Registro para PWA
+   ============================================
+   Registra el service worker para soporte offline
+   y capacidad de instalación como app
+*/
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/Proyecto-Pool/service-worker.js')
+            .then(registration => {
+                console.log('✅ Service Worker registrado exitosamente:', registration);
+            })
+            .catch(error => {
+                console.warn('⚠️ Error al registrar Service Worker:', error);
+            });
+    });
+} else {
+    console.log('ℹ️ Este navegador no soporta Service Workers');
+}
