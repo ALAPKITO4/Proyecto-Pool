@@ -46,15 +46,31 @@ async function adminLogin() {
         
         console.log('✅ Usuario autenticado:', firebaseUser.email);
         
-        const userDoc = await adminDb.collection('users').doc(firebaseUser.uid).get();
+        // Verificar o crear documento en Firestore
+        let userDoc = await adminDb.collection('users').doc(firebaseUser.uid).get();
         
         if (!userDoc.exists) {
-            await adminAuth.signOut();
-            showLoginError('Este usuario no está registrado en el sistema');
-            return;
+            // Crear documento de usuario si no existe
+            await adminDb.collection('users').doc(firebaseUser.uid).set({
+                uid: firebaseUser.uid,
+                email: firebaseUser.email,
+                username: email.split('@')[0],
+                username_lower: email.split('@')[0].toLowerCase(),
+                role: 'user',
+                status: 'active',
+                createdAt: new Date().toISOString(),
+                authMethod: 'email-password'
+            });
+            userDoc = await adminDb.collection('users').doc(firebaseUser.uid).get();
         }
         
         const userData = userDoc.data();
+        
+        if (userData.status === 'blocked') {
+            await adminAuth.signOut();
+            showLoginError('Tu cuenta está bloqueada. Contacta al administrador.');
+            return;
+        }
         
         if (userData.role !== 'admin') {
             await adminAuth.signOut();
