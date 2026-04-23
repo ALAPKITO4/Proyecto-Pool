@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Setup Admin - Pool App</title>
+    <style>
+        body { font-family: -apple-system, sans-serif; background: #1a1a2e; color: #fff; padding: 20px; }
+        .container { max-width: 500px; margin: 0 auto; background: #16213e; padding: 30px; border-radius: 16px; }
+        h2 { color: #00d9ff; text-align: center; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; }
+        .form-group input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #333; background: #0f0f23; color: #fff; }
+        button { width: 100%; padding: 14px; background: #00d9ff; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold; margin-bottom: 10px; }
+        button:hover { background: #00b8d9; }
+        .message { padding: 15px; border-radius: 8px; margin-bottom: 15px; display: none; }
+        .success { background: #4caf50; color: white; }
+        .error { background: #ff6b6b; color: white; }
+        .info { color: #aaa; font-size: 13px; line-height: 1.6; background: #0f0f23; padding: 15px; border-radius: 8px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>🛡️ Setup Admin Pool</h2>
+        <div class="message" id="message"></div>
+        
+        <div class="form-group">
+            <label>Email</label>
+            <input type="email" id="email" placeholder="tu@email.com">
+        </div>
+        
+        <div class="form-group">
+            <label>Contraseña</label>
+            <input type="password" id="password" placeholder="contraseña">
+        </div>
+        
+        <div class="form-group">
+            <label>Nombre de usuario (username)</label>
+            <input type="text" id="username" placeholder="admin">
+        </div>
+        
+        <button onclick="loginAndSetupAdmin()">Iniciar sesión y crear Admin</button>
+        
+        <div class="info">
+            <strong>Pasos:</strong><br>
+            1. Crea un usuario en Firebase Console → Authentication<br>
+            2. Ingresa aquí el email y contraseña<br>
+            3. También puedes crear el usuario directamente aquí si usas Gmail (será tu primer login)
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <script src="firebase-config.js"></script>
+    
+    <script>
+        async function loginAndSetupAdmin() {
+            const email = document.getElementById('email').value.trim();
+            const password = document.getElementById('password').value;
+            const username = document.getElementById('username').value.trim();
+            const messageDiv = document.getElementById('message');
+            
+            if (!email || !password || !username) {
+                showMessage('Completa todos los campos', 'error');
+                return;
+            }
+            
+            try {
+                initializeFirebase();
+                
+                if (!FIREBASE_ENABLED || !window.db || !window.auth) {
+                    throw new Error('Firebase no está configurado');
+                }
+                
+                const db = window.db;
+                const auth = window.auth;
+                
+                // Intentar login
+                let userCredential;
+                try {
+                    userCredential = await auth.signInWithEmailAndPassword(email, password);
+                } catch (e) {
+                    if (e.code === 'auth/user-not-found') {
+                        // Usuario no existe, crear nuevo
+                        userCredential = await auth.createUserWithEmailAndPassword(email, password);
+                    } else {
+                        throw e;
+                    }
+                }
+                
+                const firebaseUser = userCredential.user;
+                console.log('Usuario:', firebaseUser.uid);
+                
+                // Guardar en Firestore con rol admin
+                await db.collection('users').doc(firebaseUser.uid).set({
+                    uid: firebaseUser.uid,
+                    email: firebaseUser.email,
+                    username: username,
+                    username_lower: username.toLowerCase(),
+                    role: 'admin',
+                    status: 'active',
+                    createdAt: new Date().toISOString(),
+                    authMethod: 'email-password'
+                }, { merge: true });
+                
+                showMessage('✅ ¡Admin creado! Ya puedes acceder a admin.html', 'success');
+                
+            } catch (error) {
+                showMessage('Error: ' + error.message, 'error');
+            }
+        }
+        
+        function showMessage(msg, type) {
+            const messageDiv = document.getElementById('message');
+            messageDiv.textContent = msg;
+            messageDiv.className = 'message ' + type;
+            messageDiv.style.display = 'block';
+        }
+    </script>
+</body>
+</html>

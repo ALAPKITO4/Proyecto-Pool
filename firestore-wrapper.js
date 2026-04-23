@@ -12,17 +12,28 @@
  * Maneja: Crear, leer, actualizar, eliminar pools
  */
 const PoolStorage = {
-    
-    /**
-     * Crea o actualiza un pool
-     */
-    async savePool(poolEvent) {
-        try {
-            // 📋 ASEGURAR createdAt: Si no existe, asignar uno nuevo
-            if (!poolEvent.createdAt) {
-                poolEvent.createdAt = new Date().toISOString();
-                console.log('📋 Assigned createdAt:', poolEvent.createdAt);
-            }
+     
+     /**
+      * Crea o actualiza un pool
+      */
+     async savePool(poolEvent) {
+         try {
+             // 📋 VERIFICAR SI USUARIO ESTÁ BLOQUEADO
+             if (FIREBASE_ENABLED && window.auth && window.auth.currentUser) {
+                 const userDoc = await window.db.collection('users').doc(window.auth.currentUser.uid).get();
+                 if (userDoc.exists) {
+                     const userData = userDoc.data();
+                     if (userData.status === 'blocked') {
+                         throw new Error('Tu cuenta está bloqueada. No puedes crear pools.');
+                     }
+                 }
+             }
+             
+             // 📋 ASEGURAR createdAt: Si no existe, asignar uno nuevo
+             if (!poolEvent.createdAt) {
+                 poolEvent.createdAt = new Date().toISOString();
+                 console.log('📋 Assigned createdAt:', poolEvent.createdAt);
+             }
             
             // Opción 1: Si Firebase está habilitado, guardar en Firestore
             if (FIREBASE_ENABLED && window.db) {

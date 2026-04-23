@@ -268,7 +268,9 @@ async function signUpWithEmailPassword(email, username, password, rememberMe = f
             username: username,
             username_lower: username.toLowerCase(),
             createdAt: new Date().toISOString(),
-            authMethod: 'email-password'
+            authMethod: 'email-password',
+            role: 'user',
+            status: 'active'
         };
         
         await UserStorage.saveUser(userData);
@@ -407,6 +409,8 @@ async function signInWithGoogle(rememberMe = false) {
                 photoURL: firebaseUser.photoURL,
                 createdAt: new Date().toISOString(),
                 authMethod: 'google',
+                role: 'user',
+                status: 'active',
                 // Guardar suggestedName vacío - el usuario debe elegir su nombre manualmente
                 suggestedName: ''
             };
@@ -875,7 +879,9 @@ async function validateAndSaveUsername() {
             username_lower: username.toLowerCase(),
             photoURL: firebaseUser.photoURL || null,
             createdAt: pendingData?.createdAt || new Date().toISOString(),
-            authMethod: pendingData?.authMethod || 'google'
+            authMethod: pendingData?.authMethod || 'google',
+            role: 'user',
+            status: 'active'
         };
         
         await UserStorage.saveUser(userData);

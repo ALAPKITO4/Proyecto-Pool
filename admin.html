@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pool - Admin Panel</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #1a1a2e; color: #eee; min-height: 100vh; }
+        
+        .admin-container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        
+        /* Header */
+        .admin-header { display: flex; justify-content: space-between; align-items: center; padding: 20px; background: #16213e; border-radius: 12px; margin-bottom: 20px; }
+        .admin-header h1 { color: #00d9ff; }
+        .admin-user { display: flex; align-items: center; gap: 15px; }
+        .logout-btn { background: #ff6b6b; color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; }
+        
+        /* Login Screen */
+        .login-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+        .login-box { background: #16213e; padding: 40px; border-radius: 16px; width: 100%; max-width: 400px; }
+        .login-box h2 { text-align: center; margin-bottom: 20px; color: #00d9ff; }
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; color: #aaa; }
+        .form-group input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #333; background: #0f0f23; color: #fff; font-size: 16px; }
+        
+        /* Tabs */
+        .admin-tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+        .tab-btn { padding: 12px 24px; background: #16213e; border: none; color: #aaa; border-radius: 8px; cursor: pointer; font-size: 16px; }
+        .tab-btn.active { background: #00d9ff; color: #1a1a2e; }
+        
+        /* Content Panels */
+        .admin-panel { display: none; background: #16213e; border-radius: 12px; padding: 20px; }
+        .admin-panel.active { display: block; }
+        
+        /* Stats Cards */
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        .stat-card { background: #0f0f23; padding: 20px; border-radius: 10px; text-align: center; }
+        .stat-card .number { font-size: 36px; font-weight: bold; color: #00d9ff; }
+        .stat-card .label { color: #aaa; margin-top: 5px; }
+        
+        /* Tables */
+        .data-table { width: 100%; border-collapse: collapse; }
+        .data-table th, .data-table td { padding: 12px; text-align: left; border-bottom: 1px solid #333; }
+        .data-table th { background: #0f0f23; color: #00d9ff; }
+        .data-table tr:hover { background: #1f1f3a; }
+        
+        /* Actions */
+        .action-btn { padding: 6px 12px; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; margin-right: 5px; }
+        .btn-danger { background: #ff6b6b; color: white; }
+        .btn-warning { background: #ffa500; color: white; }
+        .btn-success { background: #4caf50; color: white; }
+        .btn-info { background: #00d9ff; color: #1a1a2e; }
+        
+        /* Status Badges */
+        .badge { padding: 4px 10px; border-radius: 20px; font-size: 12px; }
+        .badge-active { background: #4caf50; color: white; }
+        .badge-blocked { background: #ff6b6b; color: white; }
+        .badge-admin { background: #00d9ff; color: #1a1a2e; }
+        
+        /* Loading */
+        .loading { text-align: center; padding: 40px; color: #aaa; }
+        
+        /* Realtime indicator */
+        .realtime-indicator { display: flex; align-items: center; gap: 8px; color: #4caf50; }
+        .realtime-dot { width: 10px; height: 10px; background: #4caf50; border-radius: 50%; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        
+        /* Scrollable table */
+        .table-container { max-height: 500px; overflow-y: auto; }
+        
+        /* JSON Viewer */
+        .json-viewer { background: #0f0f23; padding: 15px; border-radius: 8px; max-height: 300px; overflow: auto; font-family: monospace; font-size: 12px; white-space: pre-wrap; word-break: break-all; }
+        
+        /* Filters */
+        .filters { display: flex; gap: 10px; margin-bottom: 15px; }
+        .filters input, .filters select { padding: 10px; border-radius: 8px; border: 1px solid #333; background: #0f0f23; color: #fff; }
+        
+        /* Error */
+        .error-message { background: #ff6b6b; color: white; padding: 15px; border-radius: 8px; margin-bottom: 15px; display: none; }
+    </style>
+</head>
+<body>
+    <!-- Login Screen -->
+    <div id="login-screen" class="login-screen">
+        <div class="login-box">
+            <h2>🔐 Admin Login</h2>
+            <div class="error-message" id="login-error"></div>
+            <div class="form-group">
+                <label>Email de Admin</label>
+                <input type="email" id="admin-email" placeholder="admin@ejemplo.com">
+            </div>
+            <div class="form-group">
+                <label>Contraseña</label>
+                <input type="password" id="admin-password" placeholder="••••••••">
+            </div>
+            <button class="action-btn btn-info" onclick="adminLogin()" style="width: 100%; padding: 14px;">Iniciar Sesión</button>
+            <p style="text-align: center; margin-top: 15px; color: #666; font-size: 12px;">
+                Solo admin configurados en Firebase pueden acceder
+            </p>
+        </div>
+    </div>
+
+    <!-- Admin Dashboard -->
+    <div id="admin-dashboard" style="display: none;">
+        <div class="admin-container">
+            <div class="admin-header">
+                <h1>🛡️ Panel de Admin</h1>
+                <div class="admin-user">
+                    <div class="realtime-indicator">
+                        <span class="realtime-dot"></span>
+                        <span>Tiempo Real</span>
+                    </div>
+                    <span id="admin-email-display"></span>
+                    <button class="logout-btn" onclick="adminLogout()">Cerrar Sesión</button>
+                </div>
+            </div>
+
+            <div class="admin-tabs">
+                <button class="tab-btn active" onclick="switchTab('users')">👥 Usuarios</button>
+                <button class="tab-btn" onclick="switchTab('pools')">🏊 Pools</button>
+                <button class="tab-btn" onclick="switchTab('database')">💾 Base de Datos</button>
+                <button class="tab-btn" onclick="switchTab('stats')">📊 Estadísticas</button>
+            </div>
+
+            <!-- Users Panel -->
+            <div id="panel-users" class="admin-panel active">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="number" id="total-users">0</div>
+                        <div class="label">Total Usuarios</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="number" id="active-users">0</div>
+                        <div class="label">Activos</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="number" id="blocked-users">0</div>
+                        <div class="label">Bloqueados</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="number" id="admin-count">0</div>
+                        <div class="label">Admins</div>
+                    </div>
+                </div>
+                
+                <div class="filters">
+                    <input type="text" id="user-search" placeholder="Buscar por email o nombre..." oninput="filterUsers()">
+                    <select id="user-filter" onchange="filterUsers()">
+                        <option value="all">Todos</option>
+                        <option value="active">Activos</option>
+                        <option value="blocked">Bloqueados</option>
+                        <option value="admin">Admins</option>
+                    </select>
+                </div>
+                
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Usuario</th>
+                                <th>Email</th>
+                                <th>Rol</th>
+                                <th>Estado</th>
+                                <th>Creado</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="users-table-body">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Pools Panel -->
+            <div id="panel-pools" class="admin-panel">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="number" id="total-pools">0</div>
+                        <div class="label">Total Pools</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="number" id="active-pools">0</div>
+                        <div class="label">Próximos</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="number" id="completed-pools">0</div>
+                        <div class="label">Completados</div>
+                    </div>
+                </div>
+                
+                <div class="filters">
+                    <input type="text" id="pool-search" placeholder="Buscar pools..." oninput="filterPools()">
+                </div>
+                
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Nombre</th>
+                                <th>Creador</th>
+                                <th>Fecha</th>
+                                <th>Participantes</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="pools-table-body">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Database Panel -->
+            <div id="panel-database" class="admin-panel">
+                <h3 style="margin-bottom: 15px;">💾 Visor de Base de Datos (Firestore)</h3>
+                <div class="filters">
+                    <select id="collection-select" onchange="loadCollectionData()">
+                        <option value="users">users (Usuarios)</option>
+                        <option value="pools">pools (Pools)</option>
+                    </select>
+                    <button class="action-btn btn-info" onclick="loadCollectionData()">🔄 Actualizar</button>
+                    <button class="action-btn btn-success" onclick="listenToCollection()">🎧 Tiempo Real</button>
+                </div>
+                <div class="loading" id="db-loading">Cargando datos...</div>
+                <div class="json-viewer" id="db-content"></div>
+            </div>
+
+            <!-- Stats Panel -->
+            <div id="panel-stats" class="admin-panel">
+                <h3 style="margin-bottom: 15px;">📊 Estadísticas Detalladas</h3>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="number" id="google-users">0</div>
+                        <div class="label">Usuarios Google</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="number" id="email-users">0</div>
+                        <div class="label">Usuarios Email</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="number" id="apple-users">0</div>
+                        <div class="label">Usuarios Apple</div>
+                    </div>
+                </div>
+                <h4 style="margin: 20px 0 15px;">Activity Reciente</h4>
+                <div class="table-container" style="max-height: 300px;">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Usuario</th>
+                                <th>Acción</th>
+                                <th>Fecha</th>
+                            </tr>
+                        </thead>
+                        <tbody id="activity-table-body">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    
+    <script src="firebase-config.js"></script>
+    <script src="admin.js"></script>
+</body>
+</html>
