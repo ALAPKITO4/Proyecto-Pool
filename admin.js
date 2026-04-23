@@ -16,17 +16,28 @@ const ADMIN_CONFIG = {
 };
 
 async function initAdmin() {
-    initializeFirebase();
+    console.log('🔐 Iniciando Admin Panel...');
     
-    if (!FIREBASE_ENABLED) {
-        showLoginError('Firebase no está configurado correctamente');
+    if (typeof firebase === 'undefined') {
+        document.getElementById('login-error').textContent = 'Firebase SDK no cargado';
+        document.getElementById('login-error').style.display = 'block';
         return;
     }
+    
+    if (firebase.apps.length === 0) {
+        firebase.initializeApp(FIREBASE_CONFIG);
+    }
+    
+    window.db = firebase.firestore();
+    window.auth = firebase.auth();
+    FIREBASE_ENABLED = true;
     
     adminDb = window.db;
     adminAuth = window.auth;
     
     console.log('🔐 Panel de Admin inicializado');
+    console.log('   db:', !!adminDb);
+    console.log('   auth:', !!adminAuth);
 }
 
 async function adminLogin() {
@@ -35,6 +46,11 @@ async function adminLogin() {
     
     if (!email || !password) {
         showLoginError('Por favor completa todos los campos');
+        return;
+    }
+    
+    if (!adminDb || !adminAuth) {
+        showLoginError('Firebase no está listo. Actualiza la página.');
         return;
     }
     
