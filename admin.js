@@ -35,9 +35,44 @@ async function initAdmin() {
     adminDb = window.db;
     adminAuth = window.auth;
     
-    console.log('🔐 Panel de Admin inicializado');
+    console.log('🔐 Panel inicializado');
     console.log('   db:', !!adminDb);
     console.log('   auth:', !!adminAuth);
+    
+    // Auto-cargar datos sin login para debugging
+    console.log('🔄 Probando carga de datos...');
+    try {
+        const testUsers = await adminDb.collection('users').get();
+        console.log('📊 Usuarios en Firestore:', testUsers.size);
+        const testPools = await adminDb.collection('pools').get();
+        console.log('📊 Pools en Firestore:', testPools.size);
+    } catch (e) {
+        console.error('❌ Error:', e);
+    }
+}
+    debugInfo.push('✅ Firebase SDK cargado');
+    
+    if (firebase.apps.length === 0) {
+        firebase.initializeApp(FIREBASE_CONFIG);
+        debugInfo.push('✅ Firebase inicializado');
+    } else {
+        debugInfo.push('ℹ️ Ya estaba inicializado');
+    }
+    
+    window.db = firebase.firestore();
+    window.auth = firebase.auth();
+    FIREBASE_ENABLED = true;
+    
+    adminDb = window.db;
+    adminAuth = window.auth;
+    
+    debugInfo.push('✅ db: ' + (!!adminDb));
+    debugInfo.push('✅ auth: ' + (!!adminAuth));
+    
+    console.log('🔐 Panel de Admin inicializado');
+    
+    // Mostrar debug
+    console.log(debugInfo.join(', '));
 }
 
 async function adminLogin() {
@@ -162,6 +197,11 @@ async function loadUsersData() {
     try {
         console.log('👥 Cargando usuarios...');
         
+        if (!adminDb) {
+            console.error('❌ adminDb no está definido');
+            return;
+        }
+        
         const snapshot = await adminDb.collection('users').get();
         
         allUsersData = [];
@@ -169,7 +209,7 @@ async function loadUsersData() {
             allUsersData.push({ id: doc.id, ...doc.data() });
         });
         
-        console.log(`✅ ${allUsersData.length} usuarios cargados`);
+        console.log(`✅ ${allUsersData.length} usuarios cargados`, allUsersData);
         
         renderUsersTable(allUsersData);
         updateUserStats(allUsersData);
@@ -193,6 +233,12 @@ async function loadUsersData() {
 
 function renderUsersTable(users) {
     const tbody = document.getElementById('users-table-body');
+    
+    if (!users || users.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#666;">No hay usuarios registrados</td></tr>';
+        return;
+    }
+    
     const searchTerm = document.getElementById('user-search').value.toLowerCase();
     const filterStatus = document.getElementById('user-filter').value;
     
@@ -315,6 +361,11 @@ async function loadPoolsData() {
     try {
         console.log('🏊 Cargando pools...');
         
+        if (!adminDb) {
+            console.error('❌ adminDb no está definido');
+            return;
+        }
+        
         const snapshot = await adminDb.collection('pools').get();
         
         allPoolsData = [];
@@ -322,7 +373,7 @@ async function loadPoolsData() {
             allPoolsData.push({ id: doc.id, ...doc.data() });
         });
         
-        console.log(`✅ ${allPoolsData.length} pools cargados`);
+        console.log(`✅ ${allPoolsData.length} pools cargados`, allPoolsData);
         
         renderPoolsTable(allPoolsData);
         updatePoolStats(allPoolsData);
@@ -519,7 +570,10 @@ function switchTab(tabName) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    initAdmin();
+    console.log('📄 DOM cargado, iniciando...');
+    initAdmin().then(() => {
+        console.log('✅ Init completado, db:', !!adminDb, 'auth:', !!adminAuth);
+    });
 });
 
 console.log('📦 admin.js cargado - Panel de Admin listo');
