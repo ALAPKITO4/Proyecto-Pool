@@ -1,0 +1,38 @@
+{
+  "rules": {
+    // ============================================
+    // REGLAS DE AUTH PARA POOL APP
+    // ============================================
+    
+    // Solo permitir email/password registrado
+    ".providers": {
+      "email": {
+        "@disabled": true
+      },
+      "phone": {
+        "@disabled": true
+      },
+      "gameCenter": {
+        "@disabled": true
+      },
+      "facebook": {
+        "@disabled": true
+      },
+      "facebook.com": {
+        "@disabled": true
+      },
+      "twitter": {
+        "@disabled": true
+      },
+      "twitter.com": {
+        "@disabled": true
+      },
+      "github": {
+        "@disabled": true
+      },
+      "apple": {
+        "@disabled": true
+      }
+    }
+  }
+}

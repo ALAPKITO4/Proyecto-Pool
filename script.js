@@ -1,4 +1,83 @@
 /* ============================================
+   SEGURIDAD: Funciones de sanitización
+   ============================================ */
+
+/**
+ * Sanitiza una cadena para prevenir XSS
+ * Elimina caracteres peligrosos
+ * @param {string} str - Cadena a sanitizar
+ * @returns {string} - Cadena seguros
+ */
+function sanitize(str) {
+    if (!str || typeof str !== 'string') return '';
+    return str
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+        .replace(/`/g, '&#96;')
+        .replace(/=/g, '&#61;')
+        .replace(/javascript:/gi, '')
+        .replace(/on\w+=/gi, '');
+}
+
+/**
+ * Sanitiza el nombre del niño/padre para pool
+ * @param {string} name - Nombre a sanitizar
+ * @returns {string} - Nombre seguro
+ */
+function sanitizeName(name) {
+    if (!name) return '';
+    return sanitize(name.trim()).substring(0, 50);
+}
+
+/**
+ * Sanitiza ubicación
+ * @param {string} location - Ubicación a sanitizar
+ * @returns {string} - Ubicación segura
+ */
+function sanitizeLocation(location) {
+    if (!location) return '';
+    return sanitize(location.trim()).substring(0, 100);
+}
+
+/**
+ * Verifica que el usuario esté autenticado antes de una operación
+ * @returns {boolean}
+ */
+function requireAuth() {
+    if (!isUserAuthenticated()) {
+        showNotification('❌ Debes iniciar sesión', 'danger');
+        return false;
+    }
+    return true;
+}
+
+/**
+ * Verifica que el usuario sea participante de la pool
+ * @param {object} pool - Datos de la pool
+ * @returns {boolean}
+ */
+function isPoolParticipant(pool) {
+    const uid = currentUser.uid;
+    if (!uid) return false;
+    
+    // Es creador
+    if (pool.createdByUid === uid) return true;
+    
+    // Está en participantes
+    if (pool.participantsUids && pool.participantsUids.includes(uid)) return true;
+    
+    // Está en inviteds (array de objetos)
+    if (pool.invitados) {
+        const tiene = pool.invitados.some(p => p.uid === uid);
+        if (tiene) return true;
+    }
+    
+    return false;
+}
+
+/* ============================================
    CONFIGURACIÓN DE URL PARA DEPLOY
    ============================================ */
 
@@ -846,9 +925,17 @@ function addChild() {
         return;
     }
 
+    // Sanitizar antes de guardar
+    const safeName = sanitizeName(name);
+    if (!safeName) {
+        showError('Nombre inválido');
+        return;
+    }
+
     // Agregar a la lista
-    appState.children.push(name);
+    appState.children.push(safeName);
     input.value = '';
+    input.setAttribute('data-user-input', '');
 
     // Actualizar UI
     updateChildrenList();
@@ -992,9 +1079,17 @@ function addParent() {
         return;
     }
 
+    // Sanitizar antes de guardar
+    const safeName = sanitizeName(name);
+    if (!safeName) {
+        showError('Nombre inválido');
+        return;
+    }
+
     // Agregar a la lista
-    appState.parents.push(name);
+    appState.parents.push(safeName);
     input.value = '';
+    input.setAttribute('data-user-input', '');
 
     // Actualizar UI
     updateParentsList();
@@ -1278,8 +1373,14 @@ function formatConfirmationTime(isoString) {
 
 /**
  * Confirma el pool y va al paso final
+ * SEGURIDAD: Requiere autenticación
  */
 function confirmPool() {
+    // SEGURIDAD: Verificar autenticación
+    if (!requireAuth()) {
+        return;
+    }
+    
     // Generar ID único del pool
     const poolId = generatePoolId();
     
@@ -1323,14 +1424,21 @@ function confirmPool() {
         };
     });
 
+    // Sanitizar datos antes de guardar
+    const safeChildren = appState.children.map(c => sanitizeName(c));
+    const safeParents = appState.parents.map(p => sanitizeName(p));
+    const safeLocation = sanitizeLocation(appState.location);
+    const safeDriver = sanitizeName(appState.driverParent);
+    const safeReturn = sanitizeName(appState.returnParent);
+
     const newEvent = {
         id: poolId,
         date: appState.date,
-        children: [...appState.children],
-        parents: [...appState.parents],
-        driverParent: appState.driverParent,
-        returnParent: appState.returnParent,
-        location: appState.location,
+        children: safeChildren,
+        parents: safeParents,
+        driverParent: safeDriver,
+        returnParent: safeReturn,
+        location: safeLocation,
         startTime: appState.startTime,
         endTime: appState.endTime,
         createdAt: new Date().toISOString(),
@@ -2916,16 +3024,39 @@ appState.poolId = poolId;
 }
 
 /**
- * Verifica si el usuario es participante del pool
- * @param {number} poolId - ID del pool
- * @param {string} userName - Nombre del usuario
- * @returns {boolean}
+ * Acepta la invitación a una pool
+ * SEGURIDAD: Verifica que el usuario esté autenticado y sea participante
+ * 
+ * @returns {void}
  */
-function isUserParticipant(poolId, userName) {
-    const event = poolsEvents.find(e => e.id === poolId);
-    if (!event || !event.participants) return false;
-    return event.participants.some(p => isNameMatch(p.nombre, userName));
-}
+async function acceptPoolInvitation() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const poolId = urlParams.get('poolId') || appState.poolId;
+    
+    console.log('📝 ACEPTANDO INVITACIÓN');
+    console.log('   PoolId:', poolId);
+    console.log('   Usuario actual:', currentUser.nombre, `(${currentUser.telefono})`);
+    console.log('   UID:', currentUser.uid);
+    
+    // SEGURIDAD: Verificar autenticación
+    if (!requireAuth()) {
+        goToStep(0);
+        return;
+    }
+    
+    // Validaciones
+    if (!poolId) {
+        console.error('❌ Sin poolId');
+        showNotification('⚠️ Pool no encontrado', 'warning');
+        return;
+    }
+
+    if (!hasUserProfile()) {
+        console.error('❌ Usuario sin perfil completo');
+        showNotification('⚠️ Debes completar tu perfil primero', 'warning');
+        goToStep(0);
+        return;
+    }
 
 /**
  * Se une a un pool

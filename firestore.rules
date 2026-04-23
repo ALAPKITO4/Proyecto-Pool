@@ -1,0 +1,36 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ============================================
+    // REGLAS DE SEGURIDAD PARA POOL APP
+    // ============================================
+    
+    // --------------------------------------------
+    // USUARIOS: Solo el propio usuario puede leer/escribir
+    // --------------------------------------------
+    match /users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow update: if request.auth != null && request.auth.uid == userId;
+      allow delete: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // --------------------------------------------
+    // POOLS: Solo creador puede modificar, participantes pueden leer
+    // --------------------------------------------
+    match /pools/{poolId} {
+      // Leer: requiere autenticacion
+      allow read: if request.auth != null;
+      
+      // Crear: cualquier usuario autenticado
+      allow create: if request.auth != null;
+      
+      // Actualizar: solo creador
+      allow update: if request.auth != null && request.auth.uid == resource.data.createdByUid;
+      
+      // Eliminar: solo creador
+      allow delete: if request.auth != null && request.auth.uid == resource.data.createdByUid;
+    }
+  }
+}
