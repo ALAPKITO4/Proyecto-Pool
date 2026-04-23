@@ -688,5 +688,23 @@
     <!-- 4. Lógica principal de la app -->
     <script src="script.js"></script>
     
+    <!-- Definir funciones como backup si script.js no carga -->
+    <script>
+        // Asegurar que las funciones estén disponibles
+        window.showAuthMode = window.showAuthMode || function(mode) {
+            console.log('showAuthMode (fallback):', mode);
+            var choice = document.getElementById('authChoiceMode');
+            var login = document.getElementById('authLoginMode');
+            var register = document.getElementById('authRegisterMode');
+            if(choice) choice.style.display = 'none';
+            if(login) login.style.display = 'none';
+            if(register) register.style.display = 'none';
+            if(mode === 'choice' && choice) choice.style.display = 'block';
+            if(mode === 'login' && login) login.style.display = 'block';
+            if(mode === 'register' && register) register.style.display = 'block';
+        };
+        console.log('Funciones de backup definidas');
+    </script>
+    
 </body>
 </html>
