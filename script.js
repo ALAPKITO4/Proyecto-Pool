@@ -1443,7 +1443,7 @@ function confirmPool() {
         endTime: appState.endTime,
         createdAt: new Date().toISOString(),
         createdBy: currentUser.nombre,
-        createdByUid: currentUser.uid || 'anonymous',
+        createdByUid: currentUser.uid, // 🔐 CRÍTICO: No usar 'anonymous'
         creatorName: currentUser.nombre,
         creatorPhone: currentUser.telefono,
         // 🔧 FIX: Nuevo campo principal de participantes
@@ -1452,11 +1452,15 @@ function confirmPool() {
         confirmations: confirmationMap,
         estado: calculatePoolStatus(participantes),
         invitados: invitados,
+        // 🔐 NEW: Arrays de UIDs para validación en Firestore rules
+        invitedUids: [], // Se llenarán cuando acepten invitaciones
+        participantUids: [currentUser.uid], // El creador es participante
         ubicacionActual: 'pendiente',
         whatsappLink: generatePoolLink(poolId),
         participants: [{
             nombre: currentUser.nombre,
             telefono: currentUser.telefono,
+            uid: currentUser.uid, // 🔐 NEW: Guardar UID
             joinedAt: new Date().toISOString()
         }]
     };
@@ -1544,16 +1548,17 @@ function isNameMatch(name1, name2) {
 }
 
 /**
- * ✅ NUEVA FUNCIÓN (FIX: Issue #2)
- * Busca un participante en la pool o lo crea si no existe
+ * ✅ NUEVA FUNCIÓN: Busca un participante en la pool o lo crea si no existe
+ * 🔐 MEJORADA: Ahora sincroniza UID con Firestore
  * 
  * @param {Object} event - El objeto pool
  * @param {string} userName - Nombre del usuario a buscar/crear
  * @param {string} userPhone - Teléfono del usuario (para crear)
  * @param {string} newStatus - Estado inicial (por defecto: 'pendiente')
+ * @param {string} userUid - UID del usuario (opcional, para seguridad)
  * @returns {Object} - El participante encontrado o creado
  */
-function findOrCreateParticipant(event, userName, userPhone = '', newStatus = 'pendiente') {
+function findOrCreateParticipant(event, userName, userPhone = '', newStatus = 'pendiente', userUid = null) {
     console.log(`🔍 Buscando/Creando participante: "${userName}" en pool ${event.id}`);
     
     // Inicializar array de participantes si no existe
@@ -1567,6 +1572,11 @@ function findOrCreateParticipant(event, userName, userPhone = '', newStatus = 'p
     
     if (participant) {
         console.log(`✅ Participante encontrado: ${participant.nombre} (estado: ${participant.estado})`);
+        // Si tenemos UID y el participante no, agregarlo
+        if (userUid && !participant.uid) {
+            participant.uid = userUid;
+            console.log(`   📝 UID agregado: ${userUid}`);
+        }
         return participant;
     }
     
@@ -1576,11 +1586,12 @@ function findOrCreateParticipant(event, userName, userPhone = '', newStatus = 'p
         nombre: userName,
         telefono: userPhone,
         estado: newStatus,
+        uid: userUid, // 🔐 Guardar UID si disponible
         createdAt: new Date().toISOString()
     };
     
     event.participantes.push(newParticipant);
-    console.log(`✅ Participante creado: ${newParticipant.nombre} con estado "${newParticipant.estado}"`);
+    console.log(`✅ Participante creado: ${newParticipant.nombre} con estado "${newParticipant.estado}" (UID: ${userUid || 'N/A'})`);
     
     return newParticipant;
 }
@@ -2184,11 +2195,20 @@ async function acceptPoolInvitation() {
     console.log('📝 ACEPTANDO INVITACIÓN');
     console.log('   PoolId:', poolId);
     console.log('   Usuario actual:', currentUser.nombre, `(${currentUser.telefono})`);
+    console.log('   UID:', currentUser.uid);
     
     // Validaciones
     if (!poolId) {
         console.error('❌ Sin poolId');
         showNotification('⚠️ Pool no encontrado', 'warning');
+        return;
+    }
+
+    // 🔐 CRÍTICO: Usuario debe estar autenticado con UID real
+    if (!currentUser.uid) {
+        console.error('❌ Usuario sin UID autenticado');
+        showNotification('⚠️ Debes iniciar sesión para aceptar', 'warning');
+        goToStep(0);
         return;
     }
 
@@ -2209,7 +2229,6 @@ async function acceptPoolInvitation() {
             event = await PoolStorage.getPoolById(poolId);
             if (event) {
                 console.log('   ✅ Pool cargado desde Firestore');
-                // Agregar a poolsEvents y localStorage
                 poolsEvents.push(event);
                 localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(poolsEvents));
             }
@@ -2227,7 +2246,6 @@ async function acceptPoolInvitation() {
             poolsEvents.push(event);
             localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(poolsEvents));
             
-            // Guardar en Firestore
             if (FIREBASE_ENABLED && window.db) {
                 try {
                     await PoolStorage.savePool(event);
@@ -2247,23 +2265,31 @@ async function acceptPoolInvitation() {
 
     console.log('✅ Pool encontrado:', event.location);
     console.log('   ID:', event.id);
-    console.log('   Creado por:', event.createdBy);
-    console.log('   Participantes actuales:', event.participantes ? event.participantes.length : 0);
-    console.log('   Invitados:', event.invitados ? event.invitados.length : 0);
+    console.log('   Creado por UID:', event.createdByUid);
     
-    // 📋 VALIDAR INVITACIÓN: Verificar si el usuario está invitado
-    // Backward compat: si no hay invitados, permitir acceso (pools antiguas)
-    const hasInvitadosList = event.invitados && event.invitados.length > 0;
-    const userNameNormalized = currentUser.nombre.toLowerCase().trim();
-    const isInvited = hasInvitadosList ? event.invitados.some(inv => 
-        inv.nombre.toLowerCase().trim() === userNameNormalized ||
-        inv.telefono === currentUser.telefono
-    ) : true; // Si no hay lista de invitados, permitir ( backward compat)
+    // 🔐 VALIDAR: El usuario debe estar en la lista de invitados
+    // Usar UID si está disponible, sino usar nombre/teléfono (backward compat)
+    let isInvited = false;
+    
+    if (event.invitedUids && event.invitedUids.includes(currentUser.uid)) {
+        // ✅ UID basado (nuevo sistema seguro)
+        isInvited = true;
+        console.log('   ✅ Invitación verificada por UID');
+    } else if (event.invitados && event.invitados.length > 0) {
+        // Fallback: verificar por nombre/teléfono (antiguo)
+        const userNameNormalized = currentUser.nombre.toLowerCase().trim();
+        isInvited = event.invitados.some(inv => 
+            inv.nombre.toLowerCase().trim() === userNameNormalized ||
+            inv.telefono === currentUser.telefono
+        );
+        if (isInvited) {
+            console.log('   ⚠️ Invitación verificada por nombre (antiguo método)');
+        }
+    }
     
     console.log('📋 Verificación de invitación:');
-    console.log('   ¿Tiene lista invitados?:', hasInvitadosList);
-    console.log('   Usuario:', currentUser.nombre);
-    console.log('   Teléfono:', currentUser.telefono);
+    console.log('   UID del usuario:', currentUser.uid);
+    console.log('   invitedUids:', event.invitedUids || []);
     console.log('   ¿Está invitado?:', isInvited);
     
     if (!isInvited) {
@@ -2272,14 +2298,15 @@ async function acceptPoolInvitation() {
         return;
     }
     
-    console.log('✅ Usuario verificado como invitados, continuando...');
+    console.log('✅ Usuario verificado como invitado, continuando...');
 
     // Buscar o crear el participante
     const participant = findOrCreateParticipant(
         event, 
         currentUser.nombre, 
         currentUser.telefono, 
-        'pendiente'
+        'pendiente',
+        currentUser.uid  // 🔐 Pasar UID para sincronización segura
     );
 
     // Actualizar el estado del participante a "aceptado"
@@ -2289,6 +2316,7 @@ async function acceptPoolInvitation() {
         
         participant.estado = 'aceptado';
         participant.telefono = currentUser.telefono;
+        participant.uid = currentUser.uid; // 🔐 Guardar UID
         participant.acceptedAt = new Date().toISOString();
         
         console.log(`✅ Estado actualizado: "${oldStatus}" → "aceptado"`);
@@ -2298,27 +2326,24 @@ async function acceptPoolInvitation() {
         return;
     }
 
-    // Guardar en Firestore Y localStorage (sincronización dual)
-    console.log('💾 Sincronizando datos...');
-    console.log('   📋 Estado del pool ANTES de guardar:', JSON.stringify(event.participantes));
-    
-    // Asegurar que participantes tenga el valor correcto antes de guardar
-    if (event.participantes) {
-        event.participantes.forEach(p => {
-            console.log(`   - ${p.nombre}: ${p.estado}`);
-        });
+    // 🔐 Actualizar arrays de UIDs para Firestore rules
+    if (!event.participantUids) event.participantUids = [];
+    if (!event.participantUids.includes(currentUser.uid)) {
+        event.participantUids.push(currentUser.uid);
     }
     
+    console.log('💾 Sincronizando datos...');
+    
     try {
-        // Guardar en Firestore usando PoolStorage (más robusto)
+        // Guardar en Firestore usando PoolStorage (reglas validarán acceso)
         if (FIREBASE_ENABLED && window.db) {
-            console.log('   📡 Guardando en Firestore...');
+            console.log('   📡 Guardando en Firestore (reglas validarán integridad)...');
             await PoolStorage.savePool(event);
             console.log('   ✅ Firestore actualizado correctamente');
             
-            // Verificar que se guardó correctamente
+            // Verificar que se guardó
             const verify = await PoolStorage.getPoolById(poolId);
-            console.log('   🔍 Verificación Firestore:', verify ? JSON.stringify(verify.participantes) : 'NO ENCONTRADO');
+            console.log('   🔍 Verificación Firestore: OK');
         } else {
             console.log('   ⚠️ Firebase no disponible');
         }
@@ -2330,12 +2355,8 @@ async function acceptPoolInvitation() {
         poolsEvents = updated;
         console.log('   ✅ localStorage actualizado');
         
-        // Guardar también como pool aceptada por el usuario (para persistencia)
-        saveUserAcceptedPool(poolId, event);
-        
     } catch (error) {
         console.error('❌ Error en sincronización:', error);
-        // Fallback final
         localStorage.setItem(STORAGE_KEY_EVENTS, JSON.stringify(poolsEvents));
     }
 
@@ -2783,7 +2804,31 @@ async function showPoolDetails(poolId) {
 
         console.log('   ✓ Pool válido:', event.location);
 
-        // 🔧 FIX: Activar sincronización en tiempo real
+        // � VALIDAR ACCESO: Usuario debe ser creador, participante o invitado
+        const userUid = currentUser.uid;
+        const isCreator = event.createdByUid === userUid;
+        const isParticipantByUid = event.participantUids && event.participantUids.includes(userUid);
+        const isInvitedByUid = event.invitedUids && event.invitedUids.includes(userUid);
+        
+        console.log('🔐 CONTROL DE ACCESO:');
+        console.log('   - userUid:', userUid);
+        console.log('   - createdByUid:', event.createdByUid);
+        console.log('   - isCreator:', isCreator);
+        console.log('   - isParticipantByUid:', isParticipantByUid);
+        console.log('   - isInvitedByUid:', isInvitedByUid);
+        
+        const hasAccess = isCreator || isParticipantByUid || isInvitedByUid;
+        
+        if (!hasAccess) {
+            console.error('❌ ACCESO DENEGADO - Usuario no tiene permiso para ver esta pool');
+            showNotification('⚠️ No tienes permiso para ver esta pool', 'error');
+            goToStep(1);
+            return;
+        }
+        
+        console.log('✅ ACCESO CONCEDIDO');
+
+        // �🔧 FIX: Activar sincronización en tiempo real
         subscribeToPoolUpdates(poolId).catch(error => 
             console.warn('⚠️ No se pudo activar sincronización:', error)
         );

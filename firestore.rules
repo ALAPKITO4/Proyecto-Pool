@@ -17,20 +17,51 @@ service cloud.firestore {
     }
     
     // --------------------------------------------
-    // POOLS: Solo creador puede modificar, participantes pueden leer
+    // POOLS: Acceso basado en participación
     // --------------------------------------------
     match /pools/{poolId} {
-      // Leer: requiere autenticacion
-      allow read: if request.auth != null;
+      // Validación de estructura: todos los campos obligatorios
+      allow write: if 
+        // Debe estar autenticado
+        request.auth != null &&
+        // UID del creador debe ser válido (no 'anonymous')
+        request.auth.uid == request.resource.data.createdByUid &&
+        // Estructura requerida
+        request.resource.data.createdByUid is string &&
+        request.resource.data.invitados is list &&
+        request.resource.data.participantes is list &&
+        request.resource.data.estado in ['pendiente', 'confirmado', 'cancelado', 'completado'];
       
-      // Crear: cualquier usuario autenticado
-      allow create: if request.auth != null;
+      // Crear: solo usuario autenticado (valida createdByUid = auth.uid)
+      allow create: if 
+        request.auth != null &&
+        request.auth.uid == request.resource.data.createdByUid &&
+        request.resource.data.createdByUid != 'anonymous' &&
+        request.resource.data.invitados is list &&
+        request.resource.data.participantes is list;
+      
+      // Leer: creador O está en invitados (por UID o nombre) O está en participantes
+      allow read: if
+        request.auth != null && (
+          // Es el creador
+          request.auth.uid == resource.data.createdByUid ||
+          // Está en invitados por UID (nuevo sistema seguro)
+          request.auth.uid in resource.data.invitedUids ||
+          // Está en participantes por UID
+          request.auth.uid in resource.data.participantUids
+        );
       
       // Actualizar: solo creador
-      allow update: if request.auth != null && request.auth.uid == resource.data.createdByUid;
+      allow update: if 
+        request.auth != null && 
+        request.auth.uid == resource.data.createdByUid &&
+        // No permitir cambiar creador
+        request.auth.uid == request.resource.data.createdByUid;
       
       // Eliminar: solo creador
-      allow delete: if request.auth != null && request.auth.uid == resource.data.createdByUid;
+      allow delete: if 
+        request.auth != null && 
+        request.auth.uid == resource.data.createdByUid;
     }
   }
 }

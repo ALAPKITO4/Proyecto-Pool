@@ -37,10 +37,27 @@ const PoolStorage = {
             
             // Opción 1: Si Firebase está habilitado, guardar en Firestore
             if (FIREBASE_ENABLED && window.db) {
+                // 🔐 VALIDAR que createdByUid sea válido (NO 'anonymous')
+                if (!currentUser.uid) {
+                    console.warn('⚠️ Usuario sin UID autenticado, usando localStorage');
+                    throw new Error('Usuario debe estar autenticado para usar Firestore');
+                }
+                
+                // 🔐 Construir array de UIDs para reglas de acceso
+                const invitedUids = (poolEvent.invitados || [])
+                    .map(inv => inv.uid)
+                    .filter(uid => uid && uid !== 'anonymous');
+                
+                const participantUids = (poolEvent.participantes || [])
+                    .map(p => p.uid)
+                    .filter(uid => uid && uid !== 'anonymous');
+                
                 const docRef = await window.db.collection('pools').doc(String(poolEvent.id)).set({
                     ...poolEvent,
-                    participantsUids: poolEvent.parents || [], // Para permisos Firestore
-                    createdByUid: currentUser.uid || 'anonymous',
+                    createdByUid: currentUser.uid, // 🔐 Debe ser UID real, NO 'anonymous'
+                    // Arrays de UIDs para validación en Firestore rules
+                    invitedUids: invitedUids,
+                    participantUids: participantUids,
                     lastUpdated: new Date().toISOString()
                 }, { merge: true }); // ✅ FIX: merge: true para actualizar sin perder datos
                 
