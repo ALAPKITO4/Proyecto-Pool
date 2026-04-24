@@ -48,10 +48,15 @@ function isFirebaseConfigured() {
  * Si hay error, la app continúa sin Firebase (fallback a localStorage)
  */
 function initializeFirebase() {
+    console.log('🔧 initializeFirebase() llamado');
+    console.log('   firebase global:', typeof firebase);
+    console.log('   firebase.apps.length:', firebase?.apps?.length);
+    console.log('   FIREBASE_ENABLED actual:', FIREBASE_ENABLED);
+    
     try {
         // Verificar que Firebase está disponible globalmente
         if (typeof firebase === 'undefined') {
-            console.warn('⚠️ Firebase SDK no cargó correctamente. Usando localStorage.');
+            console.error('❌ Firebase SDK no cargó correctamente. Usando localStorage.');
             return false;
         }
 
@@ -82,6 +87,8 @@ function initializeFirebase() {
             });
         
         console.log('✅ Firebase inicializado correctamente');
+        console.log('   window.db:', window.db ? '✅' : '❌');
+        console.log('   window.auth:', window.auth ? '✅' : '❌');
         FIREBASE_ENABLED = true;
         return true;
         

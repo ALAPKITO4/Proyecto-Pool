@@ -35,9 +35,14 @@ let isInitializing = true;
  * Llamar después de inicializar Firebase
  */
 function initializeAuth() {
+    console.log('🔧 initializeAuth() llamado');
+    console.log('   FIREBASE_ENABLED:', FIREBASE_ENABLED);
+    console.log('   window.auth:', window.auth ? '✅' : '❌');
+    
     try {
         if (!FIREBASE_ENABLED || !window.auth) {
-            console.log('⚠️ Firebase Auth no disponible');
+            console.warn('⚠️ Firebase Auth no disponible. Saliendo.');
+            console.log('   Razón:', !FIREBASE_ENABLED ? '!FIREBASE_ENABLED' : '!window.auth');
             return;
         }
         
@@ -223,8 +228,11 @@ async function isUsernameAvailable(username) {
 async function signUpWithEmailPassword(email, username, password, rememberMe = false) {
     try {
         console.log('📝 Registrando nuevo usuario:', email);
+        console.log('   FIREBASE_ENABLED:', FIREBASE_ENABLED);
+        console.log('   window.auth:', window.auth ? '✅ existe' : '❌ NO EXISTE');
         
         if (!FIREBASE_ENABLED || !window.auth) {
+            console.error('❌ Firebase Auth no disponible');
             throw new Error('Firebase no disponible');
         }
         
@@ -314,8 +322,11 @@ async function signUpWithEmailPassword(email, username, password, rememberMe = f
 async function signInWithEmailPassword(email, password, rememberMe = false) {
     try {
         console.log('🔓 Iniciando sesión:', email);
+        console.log('   FIREBASE_ENABLED:', FIREBASE_ENABLED);
+        console.log('   window.auth:', window.auth ? '✅ existe' : '❌ NO EXISTE');
         
         if (!FIREBASE_ENABLED || !window.auth) {
+            console.error('❌ Firebase Auth no disponible');
             throw new Error('Firebase no disponible');
         }
         
@@ -370,12 +381,15 @@ async function signInWithEmailPassword(email, password, rememberMe = false) {
 async function signInWithGoogle(rememberMe = false) {
     try {
         console.log('🔵 Iniciando sesión con Google...');
+        console.log('   FIREBASE_ENABLED:', FIREBASE_ENABLED);
+        console.log('   window.auth:', window.auth ? '✅ existe' : '❌ NO EXISTE');
         
         if (!FIREBASE_ENABLED || !window.auth) {
+            console.error('❌ Firebase Auth no disponible');
             throw new Error('Firebase no disponible');
         }
         
-        const provider = new firebase.auth.GoogleAuthProvider();
+        const provider = window.auth ? new window.auth.GoogleAuthProvider() : new firebase.auth.GoogleAuthProvider();
         provider.addScope('profile');
         provider.addScope('email');
         
@@ -466,7 +480,7 @@ async function signInWithApple(rememberMe = false) {
             throw new Error('Firebase no disponible');
         }
         
-        const provider = new firebase.auth.OAuthProvider('apple.com');
+        const provider = window.auth ? new window.auth.OAuthProvider('apple.com') : new firebase.auth.OAuthProvider('apple.com');
         provider.addScope('email');
         provider.addScope('name');
         
