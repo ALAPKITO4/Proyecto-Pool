@@ -619,9 +619,8 @@ async function performEmailLogin() {
         // Ejecutar login
         const result = await signInWithEmailPassword(email, password, rememberMe);
         
-if (result.success) {
-            // IMPORTANTE: No mostrar nombre automático. El usuario debe elegir su username.
-            showNotification('🔵 Conectando con Google...', 'info');
+        if (result.success) {
+            showNotification('✅ ¡Sesión iniciada correctamente!', 'success');
             // El onAuthStateChanged se encarga de mostrar la pantalla de elección si es necesario
         }
         
@@ -688,10 +687,12 @@ async function performEmailRegister() {
         // Ejecutar registro
         const result = await signUpWithEmailPassword(email, username, password, false);
         
-if (result.success) {
-            // IMPORTANTE: No mostrar nombre automático. El usuario debe elegir su username.
-            showNotification('🍎 Conectando con Apple...', 'info');
-            // El onAuthStateChanged se encarga de mostrar la pantalla de elección si es necesario
+        if (result.success) {
+            showNotification('✅ ¡Cuenta creada exitosamente!', 'success');
+            // El onAuthStateChanged se encarga de navegar automáticamente
+            setTimeout(() => {
+                showAuthMode('choice');
+            }, 1500);
         }
         
     } catch (error) {

@@ -82,9 +82,6 @@ function initializeAuth() {
                 
                 // Cargar datos del usuario (perfil y pools)
                 try {
-                    if (typeof loadUserProfileFromFirebase === 'function') {
-                        await loadUserProfileFromFirebase(firebaseUser.uid);
-                    }
                     if (typeof loadPoolsEvents === 'function') {
                         await loadPoolsEvents();
                     }
