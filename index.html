@@ -690,7 +690,11 @@
     
     <!-- Definir funciones como backup si script.js no carga -->
     <script>
-        // Asegurar que las funciones estén disponibles
+        // ============================================
+        // FUNCIONES DE RESPALDO (BACKUP)
+        // Se usan solo si script.js no carga correctamente
+        // ============================================
+        
         window.showAuthMode = window.showAuthMode || function(mode) {
             console.log('showAuthMode (fallback):', mode);
             var choice = document.getElementById('authChoiceMode');
@@ -703,7 +707,70 @@
             if(mode === 'login' && login) login.style.display = 'block';
             if(mode === 'register' && register) register.style.display = 'block';
         };
-        console.log('Funciones de backup definidas');
+        
+        window.handleEnterAuth = window.handleEnterAuth || function(event) {
+            if (event.key !== 'Enter') return;
+            var loginMode = document.getElementById('authLoginMode');
+            var registerMode = document.getElementById('authRegisterMode');
+            if (loginMode && loginMode.style.display !== 'none') {
+                if (typeof performEmailLogin === 'function') performEmailLogin();
+            } else if (registerMode && registerMode.style.display !== 'none') {
+                if (typeof performEmailRegister === 'function') performEmailRegister();
+            }
+        };
+        
+        window.checkUsernameAvailability = window.checkUsernameAvailability || function() {
+            console.log('checkUsernameAvailability (fallback) llamado');
+        };
+        
+        window.updatePasswordStrength = window.updatePasswordStrength || function() {
+            console.log('updatePasswordStrength (fallback) llamado');
+        };
+        
+        window.performEmailRegister = window.performEmailRegister || function() {
+            console.error('performEmailRegister no está definida');
+            var errorDiv = document.getElementById('registerError');
+            if (errorDiv) {
+                errorDiv.textContent = '❌ Error: la función de registro no está cargada. Recarga la página.';
+                errorDiv.style.display = 'block';
+            }
+        };
+        
+        window.performEmailLogin = window.performEmailLogin || function() {
+            console.error('performEmailLogin no está definida');
+            var errorDiv = document.getElementById('loginError');
+            if (errorDiv) {
+                errorDiv.textContent = '❌ Error: la función de login no está cargada. Recarga la página.';
+                errorDiv.style.display = 'block';
+            }
+        };
+        
+        window.performGoogleAuth = window.performGoogleAuth || function() {
+            console.error('performGoogleAuth no está definida');
+            showNotification('❌ Error: Google Auth no está cargado', 'danger');
+        };
+        
+        console.log('📦 Funciones de backup definidas');
+        
+        // Verificar que las funciones principales existan
+        window.addEventListener('load', function() {
+            console.log('🔍 Verificando funciones...');
+            
+            var funcionesFaltantes = [];
+            
+            if (typeof handleEnterAuth !== 'function') funcionesFaltantes.push('handleEnterAuth');
+            if (typeof checkUsernameAvailability !== 'function') funcionesFaltantes.push('checkUsernameAvailability');
+            if (typeof updatePasswordStrength !== 'function') funcionesFaltantes.push('updatePasswordStrength');
+            if (typeof performEmailRegister !== 'function') funcionesFaltantes.push('performEmailRegister');
+            if (typeof performEmailLogin !== 'function') funcionesFaltantes.push('performEmailLogin');
+            if (typeof performGoogleAuth !== 'function') funcionesFaltantes.push('performGoogleAuth');
+            
+            if (funcionesFaltantes.length > 0) {
+                console.error('❌ Funciones faltantes:', funcionesFaltantes);
+            } else {
+                console.log('✅ Todas las funciones verificadas');
+            }
+        });
     </script>
     
     <!-- BOTÓN DE DEBUG TEMPORAL -->

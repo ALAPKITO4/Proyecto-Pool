@@ -1,6 +1,8 @@
 /* ============================================
-   SEGURIDAD: Funciones de sanitización
-   ============================================ */
+    SEGURIDAD: Funciones de sanitización
+    ============================================ */
+
+console.log('📦 script.js CARGANDO...');
 
 /**
  * Sanitiza una cadena para prevenir XSS
