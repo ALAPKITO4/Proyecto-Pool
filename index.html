@@ -688,6 +688,84 @@
     <!-- 4. Lógica principal de la app -->
     <script src="script.js"></script>
     
+    <!-- Versión embedida de performEmailRegister para diagnóstico -->
+    <script>
+    // Copia directa de la función para diagnosticar
+    window.performEmailRegister_EMBED = async function() {
+        try {
+            console.log('📝 performEmailRegister_EMBED ejecutado');
+            
+            var email = document.getElementById('registerEmail').value.trim();
+            var username = document.getElementById('registerUsername').value.trim();
+            var password = document.getElementById('registerPassword').value;
+            var termsCheckbox = document.getElementById('termsCheckbox').checked;
+            var errorDiv = document.getElementById('registerError');
+            
+            if (!email || !username || !password) {
+                errorDiv.textContent = '❌ Por favor completa todos los campos';
+                errorDiv.style.display = 'block';
+                return;
+            }
+            
+            if (!termsCheckbox) {
+                errorDiv.textContent = '❌ Debes aceptar los términos de servicio';
+                errorDiv.style.display = 'block';
+                return;
+            }
+            
+            if (username.length < 3) {
+                errorDiv.textContent = '❌ Username debe tener al menos 3 caracteres';
+                errorDiv.style.display = 'block';
+                return;
+            }
+            
+            if (password.length < 8) {
+                errorDiv.textContent = '❌ Contraseña debe tener al menos 8 caracteres';
+                errorDiv.style.display = 'block';
+                return;
+            }
+            
+            errorDiv.style.display = 'none';
+            showNotification('✍️ Creando tu cuenta...', 'info');
+            
+            // Verificar que signUpWithEmailPassword existe
+            console.log('   signUpWithEmailPassword:', typeof signUpWithEmailPassword);
+            console.log('   FIREBASE_ENABLED:', typeof FIREBASE_ENABLED);
+            console.log('   window.auth:', typeof window.auth);
+            
+            if (typeof signUpWithEmailPassword === 'function') {
+                var result = await signUpWithEmailPassword(email, username, password, false);
+                if (result.success) {
+                    showNotification('✅ ¡Cuenta creada exitosamente!', 'success');
+                }
+            } else {
+                errorDiv.textContent = '❌ signUpWithEmailPassword no está disponible';
+                errorDiv.style.display = 'block';
+            }
+            
+        } catch (error) {
+            var errorDiv = document.getElementById('registerError');
+            errorDiv.textContent = '❌ ' + error.message;
+            errorDiv.style.display = 'block';
+            console.error('Error en registro:', error);
+        }
+    };
+    
+    // Override para usar la versión embedida
+    window.performEmailRegister = window.performEmailRegister_EMBED;
+    
+    console.log('📦 performEmailRegister_EMBED definido');
+    </script>
+    
+    <!-- Debug: verificar carga inmediatamente -->
+    <script>
+        console.log('=== VERIFICACIÓN DE CARGA DE SCRIPTS ===');
+        console.log('performEmailRegister existe:', typeof performEmailRegister !== 'undefined');
+        console.log('performEmailLogin existe:', typeof performEmailLogin !== 'undefined');
+        console.log('handleEnterAuth existe:', typeof handleEnterAuth !== 'undefined');
+        console.log('sanitize existe:', typeof sanitize !== 'undefined');
+    </script>
+    
     <!-- Definir funciones como backup si script.js no carga -->
     <script>
         // ============================================
